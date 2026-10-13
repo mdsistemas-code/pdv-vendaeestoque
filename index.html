@@ -638,7 +638,7 @@
 <div id="toasts" aria-live="polite"></div>
 <div class="chart-tip" id="chartTip"></div>
 
-<!-- Tela de login (aparece só no modo Firebase) -->
+<!-- Tela de entrada: só login (na primeira vez, acesso inicial admin/admin e depois "Crie o seu acesso") -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-loading" id="loginLoading">
     <img class="login-logo" src="assets/logo-md-sistemas.png" alt="MD Sistemas" width="600" height="371">
@@ -646,29 +646,20 @@
   </div>
   <form class="login-card" id="loginForm" style="display:none" autocomplete="on" novalidate>
     <img class="login-logo" src="assets/logo-md-sistemas.png" alt="MD Sistemas" width="600" height="371">
-    <div class="auth-tabs" id="authTabs" style="display:none">
-      <button type="button" data-auth="setup">Primeiro acesso</button>
-      <button type="button" data-auth="firstlogin">Já tenho conta</button>
-    </div>
     <h3 id="loginTitle">Entrar</h3>
     <div class="sub" id="loginSub"></div>
-    <div id="firstLoginBox" style="display:none">
-      <p class="fl-text" id="firstLoginText">Este aparelho ainda não tem nenhuma conta salva. Para entrar com a conta que você já usa em outro computador ou navegador, carregue o arquivo de backup de lá (<b>Configurações → Baixar backup</b>). Depois é só entrar com o mesmo usuário e senha.</p>
-      <input type="file" id="firstLoginFile" accept=".json,application/json" hidden>
-      <button type="button" class="btn btn-primary btn-full" id="btnFirstLoginRestore">Carregar arquivo de backup</button>
-      <p class="hint" id="firstLoginCloudHint">Para não precisar disso, use o modo Firebase: a conta e os dados ficam na nuvem e funcionam em qualquer aparelho (veja o README).</p>
-    </div>
+    <div class="first-hint" id="firstHint" style="display:none"></div>
     <div id="loginFields">
-    <div class="setup-only">
+    <div class="newpass-only">
       <label class="field-label" for="setupName">Seu nome</label>
       <input type="text" id="setupName" autocomplete="name" placeholder="Ex: Zé">
     </div>
     <label class="field-label" for="loginUser" id="loginUserLabel">Usuário ou e-mail</label>
     <input type="text" id="loginUser" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-    <label class="field-label" for="loginPass">Senha</label>
+    <label class="field-label" for="loginPass" id="loginPassLabel">Senha</label>
     <input type="password" id="loginPass" autocomplete="current-password" required>
-    <div class="setup-only">
-      <label class="field-label" for="setupPass2">Repita a senha</label>
+    <div class="newpass-only">
+      <label class="field-label" for="setupPass2">Repita a senha nova</label>
       <input type="password" id="setupPass2" autocomplete="new-password">
     </div>
     <label class="check remember local-only"><input type="checkbox" id="loginRemember" checked> Manter conectado neste aparelho</label>
@@ -676,6 +667,9 @@
     <button class="btn btn-primary btn-full" type="submit" id="btnLogin">Entrar</button>
     <div class="login-links">
       <button class="link-btn" type="button" id="btnForgot">Esqueci a senha</button>
+      <button class="link-btn newpass-only" type="button" id="btnNewpassBackup">Tenho um backup de outro aparelho</button>
+      <button class="link-btn newpass-only" type="button" id="btnNewpassBack">Voltar</button>
+      <input type="file" id="newpassBackupFile" accept=".json,application/json" hidden>
     </div>
     </div>
   </form>

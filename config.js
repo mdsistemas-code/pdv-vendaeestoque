@@ -14,6 +14,14 @@ window.APP_CONFIG = {
   //                (preencha as chaves abaixo — passo a passo no README.md)
   armazenamento: 'local',
 
+  // Acesso inicial: usado só na primeira vez que o sistema é aberto (quando ainda não há contas).
+  // Depois de entrar com ele, o sistema pede para criar o seu próprio usuário e senha,
+  // e este acesso deixa de funcionar.
+  acessoInicial: {
+    usuario: 'admin',
+    senha: 'admin'
+  },
+
   // Chaves do Firebase (só usadas quando armazenamento = 'firebase')
   firebase: {
     apiKey: '',

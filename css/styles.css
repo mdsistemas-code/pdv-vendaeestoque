@@ -476,8 +476,10 @@ nav.bottom{ display:none; }
 /* ---------- Login (modo Firebase) ---------- */
 .login-overlay{
   position:fixed; inset:0; z-index:45; background:var(--sidebar-bg);
-  display:flex; align-items:center; justify-content:center; padding:20px;
+  display:flex; align-items:flex-start; justify-content:center; padding:20px;
+  overflow-y:auto; overscroll-behavior:contain;   /* janela baixa: a tela de entrada rola em vez de cortar */
 }
+.login-overlay > *{ margin:auto 0; }
 .login-overlay.hidden{ display:none; }
 .login-card{
   width:100%; max-width:380px; background:#fff; border:1px solid var(--line);
@@ -648,13 +650,13 @@ select:disabled{ opacity:.65; cursor:not-allowed; }
 .brand-preview{ padding:10px 4px 14px !important; }
 #brandPanel #brandActions .btn{ margin-top:14px; }
 
-/* ---------- Primeira inicialização: abas ---------- */
-.auth-tabs{ display:flex; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:3px; margin-bottom:18px; }
-.auth-tabs button{ flex:1; padding:9px 6px; background:transparent; border:none; border-radius:8px; font-weight:600; font-size:13px; color:var(--muted); cursor:pointer; }
-.auth-tabs button.active{ background:#fff; color:var(--ink); box-shadow:0 1px 3px rgba(20,24,22,0.12); }
-.fl-text{ font-size:13.5px; line-height:1.6; color:var(--ink); margin:6px 0 4px; }
-#firstLoginBox .btn{ margin-top:14px; }
-#firstLoginBox .hint{ margin-top:12px; line-height:1.5; }
+/* ---------- Primeira inicialização: acesso inicial ---------- */
+.first-hint{
+  font-size:13px; line-height:1.55; color:var(--amber-dark);
+  background:var(--amber-soft); border-radius:10px; padding:10px 12px; margin:0 0 14px;
+}
+.first-hint b{ color:var(--ink); }
+.login-links{ flex-wrap:wrap; row-gap:10px; }
 
 /* =========================================================
    CELULAR — otimizações aplicadas sempre que o sistema abre
@@ -799,6 +801,7 @@ select:disabled{ opacity:.65; cursor:not-allowed; }
 
   /* Entrada e gráficos */
   .login-overlay{ align-items:flex-start; padding:calc(20px + env(safe-area-inset-top, 0px)) 14px 20px; overflow-y:auto; }
+  .login-overlay > *{ margin:0 0 auto; }   /* celular: card no topo (o teclado sobe por baixo) */
   .login-card{ padding:22px 18px; }
   .login-logo{ width:150px; margin-bottom:18px; }
   .chart-box{ height:230px; }

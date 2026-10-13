@@ -97,8 +97,10 @@ async function restoreBackup(file){
     plural(n('sales'), 'venda', 'vendas') + ', ' + plural(n('payments'), 'recebimento', 'recebimentos') + ', ' + plural(n('expenses'), 'gasto', 'gastos');
   // Aparelho sem dados (ex.: primeira inicialização): não há nada a perder
   const hasData = ['products', 'customers', 'sales', 'payments', 'expenses'].some(c => state[c].length);
+  // O acesso inicial (admin/admin ainda não trocado) não conta como conta de verdade
+  const realUsers = state.users.some(u => !u.mustChangePassword);
   const usersNote = backupHasUsers && storageMode !== 'firebase'
-    ? (hasData || state.users.length ? ' Os usuários e senhas também passam a ser os do backup.' : ' As contas do backup também vêm junto.')
+    ? (hasData || realUsers ?' Os usuários e senhas também passam a ser os do backup.' : ' As contas do backup também vêm junto.')
     : '';
   const ok = await confirmDialog(hasData ? {
     title: 'Restaurar backup?',

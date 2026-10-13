@@ -2,11 +2,31 @@
    • Modo local e demonstração web: os usuários ficam no próprio banco (coleção "users").
      A senha nunca é guardada: só um "hash" (PBKDF2-SHA256 com sal), que não dá para reverter.
    • Modo Firebase: o login é o do Firebase Authentication (ver app.js).
-   O primeiro acesso cria o usuário administrador e mostra um código de recuperação. */
+   A tela de entrada só tem login. Na primeira inicialização existe um acesso inicial
+   (admin / admin); ao usá-lo, a pessoa cria o próprio usuário e senha e recebe um código de recuperação. */
 
 const SESSION_KEY = DB_NAME + ':sessao';
 let currentUser = null;            // { id, name, username, admin }
-let authScreen = 'loading';        // 'loading' | 'setup' | 'firstlogin' | 'login' | 'firebase' | null (dentro do sistema)
+let authScreen = 'loading';        // 'loading' | 'login' | 'newpass' | 'firebase' | null (dentro do sistema)
+
+/* ---------- Acesso inicial ----------
+   A tela de entrada só tem login. Quando o sistema ainda não tem nenhuma conta, ele cria
+   sozinho um acesso inicial (padrão: usuário "admin", senha "admin", ou o que estiver em
+   config.js → acessoInicial). Ao entrar com ele, o sistema pede na hora o nome, o usuário
+   (ou e-mail) e uma senha nova; depois disso o acesso inicial deixa de funcionar. */
+const DEFAULT_ADMIN_ID = 'admin-inicial';
+let pendingUserId = null;          // conta que entrou com o acesso inicial e precisa trocar a senha
+let pendingRemember = true;
+let creatingDefault = false;
+let finishingNewpass = false;      // salvando o novo acesso: a tela não muda no meio
+let freshUserId = null;            // conta recém-criada que ainda pode não ter chegado na lista
+function initialAccess(){
+  const a = (window.APP_CONFIG || {}).acessoInicial || {};
+  let usuario = String(a.usuario || '').trim().toLowerCase();
+  if (!/^[a-z0-9._-]{2,30}$/.test(usuario)) usuario = 'admin';
+  const senha = String(a.senha || '') || 'admin';
+  return { usuario, senha };
+}
 let loginFailures = 0, loginBlockedUntil = 0;
 
 function usesAppLogin(){ return storageMode !== 'firebase' && !offline; }
@@ -159,33 +179,61 @@ function showAuthScreen(mode){
   $('#loginLoading').style.display = loading ? '' : 'none';
   $('#loginForm').style.display = loading ? 'none' : '';
   if (loading) return;
-  const setup = mode === 'setup';
+  const newpass = mode === 'newpass';
   const firebase = mode === 'firebase';
-  const firstlogin = mode === 'firstlogin';
-  // Na primeira inicialização: abas "Primeiro acesso" e "Já tenho conta"
-  $('#authTabs').style.display = (setup || firstlogin) ? '' : 'none';
-  $$('#authTabs button').forEach(b => b.classList.toggle('active', b.dataset.auth === mode));
-  $('#firstLoginBox').style.display = firstlogin ? '' : 'none';
-  $('#loginFields').style.display = firstlogin ? 'none' : '';
-  $('#firstLoginCloudHint').style.display = storageMode === 'local' ? '' : 'none';
-  if (firstlogin && storageMode === 'claude') {
-    $('#firstLoginText').innerHTML = 'Esta demonstração ainda não tem nenhuma conta. Para entrar com a conta que você usa no seu site ou em outro aparelho, carregue o arquivo de backup de lá (<b>Configurações → Baixar backup</b>). Depois é só entrar com o mesmo usuário e senha.';
-  }
-  setText('loginTitle', setup ? 'Criar o primeiro acesso' : firstlogin ? 'Entrar com uma conta que já existe' : 'Entrar');
-  setText('loginSub', setup
-    ? 'Crie a conta do administrador. Depois você pode cadastrar outras pessoas em Configurações.'
-    : firstlogin ? '' : firebase ? 'Use o e-mail e a senha cadastrados no Firebase.' : 'Entre com o seu usuário ou e-mail e a senha.');
-  $$('.setup-only').forEach(el => { el.style.display = setup ? '' : 'none'; });
-  $$('.local-only').forEach(el => { el.style.display = firebase ? 'none' : ''; });
-  $('#btnForgot').style.display = (setup || firebase) ? 'none' : '';
-  setText('loginUserLabel', firebase ? 'E-mail' : 'Usuário ou e-mail');
-  prepLoginInput($('#loginUser'), firebase ? 'voce@email.com' : setup ? 'Ex: ze ou ze@gmail.com' : '');
+  setText('loginTitle', newpass ? 'Crie o seu acesso' : 'Entrar');
+  setText('loginSub', newpass
+    ? 'Você entrou com o acesso inicial. Para continuar, informe o seu nome, o usuário (ou e-mail) que vai usar e uma senha nova. O acesso inicial deixa de funcionar.'
+    : firebase ? 'Use o e-mail e a senha cadastrados no Firebase.' : 'Entre com o seu usuário ou e-mail e a senha.');
+  $$('.newpass-only').forEach(el => { el.style.display = newpass ? '' : 'none'; });
+  $$('.local-only').forEach(el => { el.style.display = (firebase || newpass) ? 'none' : ''; });
+  $('#btnForgot').style.display = (newpass || firebase) ? 'none' : '';
+  setText('loginUserLabel', firebase ? 'E-mail' : newpass ? 'Usuário ou e-mail que você vai usar' : 'Usuário ou e-mail');
+  prepLoginInput($('#loginUser'), firebase ? 'voce@email.com' : newpass ? 'Ex: ze ou ze@gmail.com' : '');
   if (firebase) { $('#loginUser').type = 'email'; $('#loginUser').autocomplete = 'email'; }
-  $('#loginPass').autocomplete = setup ? 'new-password' : 'current-password';
-  setText('btnLogin', setup ? 'Criar e entrar' : 'Entrar');
+  setText('loginPassLabel', newpass ? 'Senha nova' : 'Senha');
+  $('#loginPass').autocomplete = newpass ? 'new-password' : 'current-password';
+  setText('btnLogin', newpass ? 'Salvar e entrar' : 'Entrar');
+  if (newpass) { ['setupName', 'loginUser', 'loginPass', 'setupPass2'].forEach(id => { $('#' + id).value = ''; }); }
   $('#loginError').style.display = 'none';
   $('#userChip').style.display = 'none';
-  focusLater(() => firstlogin ? $('#btnFirstLoginRestore') : setup ? $('#setupName') : $('#loginUser'), 60);
+  renderFirstHint();
+  focusLater(() => newpass ? $('#setupName') : $('#loginUser'), 60);
+}
+
+// Mostra o acesso inicial na tela de entrada enquanto ele ainda não foi usado
+function defaultAdminPending(){
+  const active = state.users.filter(isActiveUser);
+  return active.length === 1 && active[0].mustChangePassword ? active[0] : null;
+}
+function renderFirstHint(){
+  const el = $('#firstHint');
+  const show = authScreen === 'login' && usesAppLogin() && !!defaultAdminPending();
+  el.style.display = show ? '' : 'none';
+  if (show) {
+    const ia = initialAccess();
+    el.innerHTML = '<b>Primeiro acesso:</b> entre com o usuário <b>' + esc(ia.usuario) + '</b> e a senha <b>' + esc(ia.senha) + '</b>. Em seguida, você cria o seu usuário e a sua senha.';
+  }
+}
+
+// Cria o acesso inicial quando não existe nenhuma conta (id fixo: abrir em duas abas não duplica).
+// Contas de verdade nunca usam esse id, então isso não sobrescreve ninguém.
+async function ensureDefaultAdmin(){
+  if (creatingDefault || !db) return;
+  creatingDefault = true;
+  try {
+    // Fora do modo local, os dados chegam pela internet: espera um pouco e confere de novo
+    if (storageMode !== 'local') {
+      await new Promise(r => setTimeout(r, 1500));
+      if (state.users.some(isActiveUser)) return;
+    }
+    const ia = initialAccess();
+    const data = Object.assign({ name: 'Administrador', username: ia.usuario, email: null, admin: true, mustChangePassword: true, createdAt: new Date().toISOString() }, await makeSecret(ia.senha));
+    await db.collection('users').doc(DEFAULT_ADMIN_ID).set(data);
+  } catch (e) {
+    console.error(e);
+    showLoginError(errMsg(e, loginErrorMsg(e) || 'Não foi possível preparar o acesso inicial. Recarregue a página.'));
+  } finally { creatingDefault = false; }
 }
 
 function enterApp(){
@@ -203,22 +251,39 @@ function renderUserChip(){
   if (currentUser) setText('userName', currentUser.name);
 }
 
+// O acesso inicial só existe enquanto não há nenhuma conta de verdade: se aparecer junto com contas
+// (ex.: dados que chegaram atrasados), ele é apagado e não entra mais
+function realAccounts(){ return state.users.filter(u => isActiveUser(u) && !u.mustChangePassword); }
+function cleanupDefaultAdmin(){
+  if (!realAccounts().length) return;
+  state.users.filter(u => u.mustChangePassword && u.id !== pendingUserId)
+    .forEach(u => db.collection('users').doc(u.id).delete().catch(() => {}));
+}
+
 // Decide o que mostrar sempre que a lista de usuários muda (modo local e demonstração)
 function evaluateAuth(){
-  if (!usesAppLogin() || !loaded.users) return;
+  if (!usesAppLogin() || !loaded.users || finishingNewpass) return;
+  cleanupDefaultAdmin();
   const active = state.users.filter(isActiveUser);
-  if (!active.length) { currentUser = null; if (authScreen !== 'setup' && authScreen !== 'firstlogin') showAuthScreen('setup'); return; }
+  if (!active.length) { currentUser = null; if (authScreen !== 'login') showAuthScreen('login'); ensureDefaultAdmin(); return; }
+  // Trocando o acesso inicial: continua nessa tela, a não ser que a conta tenha sumido (ex.: backup carregado)
+  if (authScreen === 'newpass') {
+    if (!active.some(x => x.id === pendingUserId)) { pendingUserId = null; showAuthScreen('login'); }
+    return;
+  }
   if (currentUser) {
     const u = active.find(x => x.id === currentUser.id);
-    if (!u) { logout('Seu usuário foi removido.'); return; }
+    if (!u) { if (currentUser.id !== freshUserId) logout('Seu usuário foi removido.'); return; }
+    if (u.id === freshUserId) freshUserId = null;
     currentUser = userView(u);
     if (!authScreen) renderUserChip();
     return;
   }
   const sess = readSession();
   const u = sess && active.find(x => x.id === sess.userId);
-  if (u) { currentUser = userView(u); enterApp(); }
+  if (u && !u.mustChangePassword) { currentUser = userView(u); enterApp(); }
   else if (authScreen !== 'login') showAuthScreen('login');
+  else renderFirstHint();
 }
 
 function logout(msg){
@@ -227,7 +292,7 @@ function logout(msg){
   if (typeof resetSaleForm === 'function') resetSaleForm();
   closeModal();
   if (storageMode === 'firebase' && db && db.auth) { db.auth.signOut(); }
-  else showAuthScreen(state.users.some(isActiveUser) ? 'login' : 'setup');
+  else showAuthScreen('login');
   if (msg) toast(msg);
 }
 
@@ -257,7 +322,7 @@ function showRecoveryCode(code, forName, then){
 
 async function submitLogin(e){
   e.preventDefault();
-  if (!db || authScreen === 'firstlogin') return;
+  if (!db) return;
   const btn = $('#btnLogin');
   $('#loginError').style.display = 'none';
   const userIn = $('#loginUser').value;
@@ -272,27 +337,42 @@ async function submitLogin(e){
     return;
   }
 
-  if (authScreen === 'setup') {
+  if (authScreen === 'newpass') {
+    const u = state.users.find(x => x.id === pendingUserId);
+    if (!u) { showAuthScreen('login'); return; }
     const name = $('#setupName').value.trim();
     if (!name) { showLoginError('Digite seu nome.'); return; }
     const idr = parseLoginId(userIn);
     if (idr.error) { showLoginError(idr.error); return; }
+    if (loginIdTaken(idr, u.id)) { showLoginError(idr.email ? 'Já existe uma conta com esse e-mail.' : 'Esse usuário já existe. Escolha outro.'); return; }
     if (pass.length < 4) { showLoginError('A senha precisa ter pelo menos 4 caracteres.'); return; }
     if (pass !== $('#setupPass2').value) { showLoginError('As senhas não conferem.'); return; }
-    btn.disabled = true; btn.textContent = 'Criando…';
+    if (pass === initialAccess().senha) { showLoginError('Escolha uma senha diferente da senha inicial.'); return; }
+    btn.disabled = true; btn.textContent = 'Salvando…';
+    finishingNewpass = true;
     try {
       const code = newRecoveryCode();
-      const rec = await makeSecret(pass);
-      const recovery = await makeSecret(normalizeCode(code));
-      const ref = await withSave(() => db.collection('users').add(Object.assign(
-        { name, admin: true, createdAt: new Date().toISOString(), recovery }, idr, rec)));
-      writeSession(ref.id, remember);
+      const now = new Date().toISOString();
+      // A conta nova é criada à parte e o acesso inicial é apagado: ele deixa de funcionar
+      const data = Object.assign({
+        name, username: idr.username || null, email: idr.email || null, admin: true,
+        createdAt: now, lastLoginAt: now, recovery: await makeSecret(normalizeCode(code))
+      }, await makeSecret(pass));
+      const ref = await withSave(() => db.collection('users').add(data));
+      await db.collection('users').doc(u.id).delete().catch(() => {});
+      freshUserId = ref.id;
+      writeSession(ref.id, pendingRemember);
       currentUser = Object.assign({ id: ref.id, name, admin: true }, idr);
-      enterApp();
+      pendingUserId = null;
       $('#setupName').value = ''; $('#setupPass2').value = '';
+      finishingNewpass = false;
+      enterApp();
       showRecoveryCode(code, null, () => toast('Pronto! Bem-vindo, ' + name + '.'));
     } catch (ex) { showLoginError(errMsg(ex, loginErrorMsg(ex))); }
-    finally { btn.disabled = false; btn.textContent = authScreen === 'setup' ? 'Criar e entrar' : 'Entrar'; }
+    finally {
+      finishingNewpass = false;
+      btn.disabled = false; btn.textContent = authScreen === 'newpass' ? 'Salvar e entrar' : 'Entrar';
+    }
     return;
   }
 
@@ -301,6 +381,7 @@ async function submitLogin(e){
   btn.disabled = true; btn.textContent = 'Entrando…';
   try {
     if (!normalizeUsername(userIn)) { showLoginError('Digite o usuário ou e-mail.'); return; }
+    if (!state.users.some(isActiveUser)) { showLoginError('Preparando o acesso inicial. Tente de novo em alguns segundos.'); ensureDefaultAdmin(); return; }
     const u = findUserByLogin(userIn);
     const ok = u ? await checkSecret(u, pass) : false;
     if (!ok) {
@@ -311,27 +392,37 @@ async function submitLogin(e){
     }
     loginFailures = 0;
     if (!isActiveUser(u)) { showLoginError('Sua conta ainda está aguardando a aprovação de um administrador.'); return; }
+    if (u.mustChangePassword && realAccounts().length) {   // já existem contas: o acesso inicial não vale mais
+      cleanupDefaultAdmin();
+      showLoginError('Usuário ou senha incorretos.');
+      return;
+    }
+    if (u.mustChangePassword) {             // acesso inicial: antes de entrar, cria o próprio acesso
+      pendingUserId = u.id;
+      pendingRemember = remember;
+      showAuthScreen('newpass');
+      return;
+    }
     writeSession(u.id, remember);
     currentUser = userView(u);
     enterApp();
     toast('Olá, ' + currentUser.name + '!');
     db.collection('users').doc(u.id).update({ lastLoginAt: new Date().toISOString() }).catch(() => {});
   } catch (ex) { showLoginError(loginErrorMsg(ex)); }
-  finally { btn.disabled = false; btn.textContent = 'Entrar'; }
+  finally { btn.disabled = false; btn.textContent = authScreen === 'newpass' ? 'Salvar e entrar' : 'Entrar'; }
 }
 
-/* ---------- Primeira inicialização: entrar com uma conta que já existe ---------- */
-// Traz os dados (e as contas) de outro aparelho por um arquivo de backup
-async function firstLoginRestore(file){
+/* ---------- Aparelho novo: trazer as contas e os dados de outro aparelho ---------- */
+// Na tela "Crie o seu acesso" dá para carregar o backup de outro aparelho em vez de criar uma conta nova
+async function loadBackupAtStart(file){
   const result = await restoreBackup(file);
   if (!result) return;
-  // Decide pelo conteúdo do arquivo: a lista de contas pode chegar do banco um instante depois
-  if (result === 'com-contas' || state.users.some(isActiveUser)) {
+  if (result === 'com-contas') {
+    pendingUserId = null;
     showAuthScreen('login');
     setText('loginSub', 'Dados carregados. Agora entre com o seu usuário ou e-mail e a senha.');
   } else {
-    showAuthScreen('setup');
-    toast('O backup foi carregado, mas não tinha contas. Crie o primeiro acesso para entrar.');
+    toast('O backup foi carregado, mas não tinha contas. Crie o seu acesso para continuar.');
   }
 }
 
@@ -587,9 +678,9 @@ async function deleteUser(id){
 /* ---------- Eventos ---------- */
 $('#loginForm').addEventListener('submit', submitLogin);
 $('#btnForgot').addEventListener('click', openRecovery);
-$('#authTabs').addEventListener('click', e => { const b = e.target.closest('[data-auth]'); if (b) showAuthScreen(b.dataset.auth); });
-$('#btnFirstLoginRestore').addEventListener('click', () => $('#firstLoginFile').click());
-$('#firstLoginFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) firstLoginRestore(f); });
+$('#btnNewpassBackup').addEventListener('click', () => $('#newpassBackupFile').click());
+$('#newpassBackupFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) loadBackupAtStart(f); });
+$('#btnNewpassBack').addEventListener('click', () => { pendingUserId = null; showAuthScreen('login'); });
 $('#btnLogoutTop').addEventListener('click', () => logout());
 $('#btnNewUser').addEventListener('click', openNewUser);
 $('#btnMyPassword').addEventListener('click', () => { if (currentUser) openPasswordChange(currentUser.id); });
