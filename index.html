@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F7F5F0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Depósito">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<title>Depósito</title>
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="shell">
+
+  <nav class="sidenav" aria-label="Menu principal">
+    <div class="brand"><span class="dot"></span><span class="brand-name">Depósito</span><span class="brand-period">.</span></div>
+    <button class="nav-btn active" data-goto="inicio"><span class="ic">◆</span>Início</button>
+    <button class="nav-btn" data-goto="venda"><span class="ic">＋</span>Nova venda<kbd>F2</kbd></button>
+    <button class="nav-btn" data-goto="vendas"><span class="ic">☰</span>Vendas</button>
+    <button class="nav-btn" data-goto="caixa"><span class="ic">▣</span>Caixa do dia</button>
+    <button class="nav-btn" data-goto="fiado"><span class="ic">▤</span>Fiado<span class="nav-badge" id="navFiadoBadge"></span></button>
+    <button class="nav-btn" data-goto="gastos"><span class="ic">↧</span>Gastos<span class="nav-badge" id="navGastosBadge"></span></button>
+    <button class="nav-btn" data-goto="produtos"><span class="ic">▦</span>Produtos<span class="nav-badge" id="navStockBadge"></span></button>
+    <button class="nav-btn" data-goto="clientes"><span class="ic">☺</span>Clientes</button>
+    <button class="nav-btn" data-goto="relatorio"><span class="ic">▲</span>Relatório</button>
+    <button class="nav-btn" data-goto="config"><span class="ic">⚙</span>Configurações<span class="nav-badge" id="navConfigBadge"></span></button>
+    <div class="side-foot"><b>F2</b> abre uma nova venda.<br><b>Enter</b> na busca adiciona o produto.</div>
+  </nav>
+
+  <div class="main-wrap">
+    <header class="top">
+      <div>
+        <div class="screen-title" id="screenTitle">Início</div>
+        <div class="sub" id="dateLabel">—</div>
+      </div>
+      <div class="top-actions">
+        <span class="sync" id="syncStatus" data-state="connecting"><span class="sync-dot"></span><span id="syncText">Conectando…</span></span>
+        <span class="user-chip" id="userChip" style="display:none"><span class="user-name" id="userName"></span><button class="link-btn" id="btnLogoutTop">Sair</button></span>
+        <button class="btn btn-primary btn-small" id="btnHeaderVenda" data-goto="venda">＋ Nova venda</button>
+      </div>
+    </header>
+
+    <main>
+      <div id="offlineBanner" class="offline-banner" style="display:none">
+        Não foi possível abrir o banco de dados. Recarregue a página.
+      </div>
+
+      <!-- ================= INÍCIO ================= -->
+      <section class="screen active" id="screen-inicio">
+        <div class="notice" id="backupReminder" style="display:none">
+          <span id="backupReminderText"></span>
+          <button class="btn btn-primary btn-small" id="btnBackupReminder">Baixar backup agora</button>
+        </div>
+        <div class="notice" id="accountsNotice" style="display:none">
+          <span id="accountsNoticeText"></span>
+          <button class="btn btn-primary btn-small" data-goto="config">Ver contas</button>
+        </div>
+        <div class="notice warn" id="billsNotice" style="display:none">
+          <span id="billsNoticeText"></span>
+          <button class="btn btn-outline btn-small" id="btnBillsNotice">Ver contas</button>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card ok">
+            <div class="label">Vendido hoje</div>
+            <div class="value" id="statHoje">R$ 0,00</div>
+            <div class="foot" id="statHojeSub"></div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Faturado no mês</div>
+            <div class="value" id="statFaturado">R$ 0,00</div>
+            <div class="foot" id="statFaturadoSub"></div>
+          </div>
+          <div class="stat-card good">
+            <div class="label">Lucro no mês</div>
+            <div class="value" id="statLucro">R$ 0,00</div>
+            <div class="foot" id="statLucroSub"></div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Gastos no mês</div>
+            <div class="value" id="statGastos">R$ 0,00</div>
+            <div class="foot" id="statGastosSub"></div>
+          </div>
+          <div class="stat-card warn">
+            <div class="label">Fiado em aberto</div>
+            <div class="value" id="statFiado">R$ 0,00</div>
+            <div class="foot" id="statFiadoSub"></div>
+          </div>
+        </div>
+
+        <div class="home-grid">
+          <div class="chart-card">
+            <div class="ct-title">Faturamento dos últimos 7 dias <span>(clique num dia para abrir o caixa)</span></div>
+            <div class="chart-box">
+              <div class="svg-chart" id="chartHome7"></div>
+              <div class="chart-empty" id="chartHome7Empty">Nenhuma venda nos últimos 7 dias.</div>
+            </div>
+          </div>
+          <div class="panel">
+            <h2 class="section-title">Estoque para repor</h2>
+            <div id="lowStockList"></div>
+          </div>
+        </div>
+
+        <div class="chart-grid home-charts">
+          <div class="chart-card">
+            <div class="ct-title">Faturamento por produto <span>(mês atual)</span></div>
+            <div class="chart-box">
+              <div class="svg-chart" id="chartHomeProducts"></div>
+              <div class="chart-empty" id="chartHomeProductsEmpty">Nenhuma venda neste mês ainda.</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="ct-title">Formas de pagamento <span>(mês atual)</span></div>
+            <div class="chart-box">
+              <div class="svg-chart" id="chartHomeMethods"></div>
+              <div class="chart-empty" id="chartHomeMethodsEmpty">Nenhuma venda neste mês ainda.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">Últimas vendas</h2>
+          <button class="link-btn" data-goto="vendas">Ver todas as vendas</button>
+        </div>
+        <div id="ultimasVendas"></div>
+      </section>
+
+      <!-- ================= NOVA VENDA ================= -->
+      <section class="screen" id="screen-venda">
+        <div class="venda-grid">
+          <div>
+            <input type="text" id="vendaSearch" class="search-big" placeholder="Buscar produto pelo nome… (Enter adiciona o primeiro da lista)" autocomplete="off">
+            <div class="chip-row" id="vendaCatChips"></div>
+            <div id="pickProducts" class="product-grid"></div>
+          </div>
+
+          <div class="cart-panel">
+            <div class="edit-banner" id="editBanner" style="display:none">
+              <span id="editBannerText"></span>
+              <button class="link-btn" id="btnCancelEdit">Cancelar edição</button>
+            </div>
+            <div class="cart-head">
+              <h3 id="cartTitle">Carrinho</h3>
+              <button class="link-btn" id="btnClearCart" style="display:none">Esvaziar</button>
+            </div>
+            <div id="cartList"></div>
+            <div id="cartEmpty" class="cart-empty">Clique em um produto para adicionar à venda.</div>
+
+            <div id="cartExtras" style="display:none">
+              <div class="sum-line"><span>Subtotal</span><span id="cartSubtotal">R$ 0,00</span></div>
+              <div class="sum-line" id="itemsDiscLine" style="display:none"><span>Descontos nos itens</span><span class="disc" id="cartItemsDiscount"></span></div>
+
+              <label class="field-label" for="cartDiscount">Desconto geral na venda (R$)</label>
+              <input type="text" inputmode="decimal" id="cartDiscount" placeholder="0,00" autocomplete="off">
+              <div class="field-error" id="discountError">O desconto geral não pode ser maior que o valor dos itens.</div>
+
+              <label class="field-label">Tipo de venda</label>
+              <div class="segmented" id="saleTypeSeg">
+                <button data-type="avista" class="active">À vista</button>
+                <button data-type="fiado">Fiado</button>
+              </div>
+
+              <div id="paymentMethodWrap">
+                <label class="field-label">Forma de pagamento</label>
+                <div class="segmented" id="paymentSeg">
+                  <button data-pm="dinheiro" class="active">Dinheiro</button>
+                  <button data-pm="pix">Pix</button>
+                  <button data-pm="cartao">Cartão</button>
+                </div>
+                <div class="segmented" id="cardTypeSeg" style="display:none">
+                  <button data-ct="debito" class="active">Débito</button>
+                  <button data-ct="credito">Crédito</button>
+                </div>
+                <div id="cashWrap">
+                  <label class="field-label" for="cashReceived">Valor recebido em dinheiro (opcional)</label>
+                  <input type="text" inputmode="decimal" id="cashReceived" placeholder="0,00" autocomplete="off">
+                  <div class="troco-line"><span class="muted">Troco</span><span id="cashChange">—</span></div>
+                </div>
+              </div>
+
+              <div id="customerPickWrap" style="display:none">
+                <div class="label-row">
+                  <label class="field-label" for="customerSelect">Cliente</label>
+                  <button class="link-btn" id="btnQuickCustomer">＋ Novo cliente</button>
+                </div>
+                <select id="customerSelect"></select>
+                <div class="hint" id="customerDebtHint"></div>
+              </div>
+              <div class="hint edit-lock" id="editLockHint" style="display:none"></div>
+
+              <div class="total-bar">
+                <span class="muted">Total a pagar</span>
+                <span class="amount" id="cartTotal">R$ 0,00</span>
+              </div>
+              <button class="btn btn-primary btn-full" id="btnFinalizeSale">Finalizar venda</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= VENDAS (HISTÓRICO) ================= -->
+      <section class="screen" id="screen-vendas">
+        <div class="toolbar">
+          <div class="chip-row" id="vendasPeriodChips"></div>
+          <div class="toolbar-right">
+            <select id="vendasMethod" aria-label="Forma de pagamento">
+              <option value="todas">Todas as formas</option>
+              <option value="dinheiro">Dinheiro</option>
+              <option value="pix">Pix</option>
+              <option value="cartao_debito">Cartão débito</option>
+              <option value="cartao_credito">Cartão crédito</option>
+              <option value="fiado">Fiado</option>
+              <option value="nao_informado">Não informado</option>
+            </select>
+            <input type="text" id="vendasSearch" placeholder="Buscar cliente, produto ou nº" autocomplete="off">
+          </div>
+        </div>
+        <div class="toolbar">
+          <label class="check"><input type="checkbox" id="vendasShowCanceled"> Mostrar canceladas</label>
+          <div class="toolbar-right">
+            <span class="summary" id="vendasSummary"></span>
+            <button class="btn btn-outline btn-small export-btn" id="btnExportVendas">Exportar CSV</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="vendasTableWrap">
+          <table class="data">
+            <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Forma</th><th class="num">Total</th><th>Situação</th></tr></thead>
+            <tbody id="vendasBody"></tbody>
+          </table>
+        </div>
+        <div id="vendasEmpty" class="empty-state" style="display:none">Nenhuma venda encontrada com esses filtros.</div>
+        <div class="more-wrap"><button class="btn btn-outline btn-small" id="btnVendasMore" style="display:none">Mostrar mais</button></div>
+      </section>
+
+      <!-- ================= CAIXA ================= -->
+      <section class="screen" id="screen-caixa">
+        <div class="toolbar">
+          <div class="date-ctrl">
+            <button class="btn btn-outline btn-small" id="caixaPrev" aria-label="Dia anterior">‹</button>
+            <input type="date" id="caixaDate" aria-label="Data do caixa">
+            <button class="btn btn-outline btn-small" id="caixaNext" aria-label="Próximo dia">›</button>
+            <button class="btn btn-outline btn-small" id="caixaToday">Hoje</button>
+          </div>
+          <button class="btn btn-outline btn-small export-btn" id="btnExportCaixa">Exportar CSV</button>
+        </div>
+
+        <div class="caixa-hero">
+          <div class="caixa-total">
+            <div class="label">Total recebido no dia</div>
+            <div class="big" id="caixaRecebido">R$ 0,00</div>
+            <div class="foot" id="caixaRecebidoSub"></div>
+          </div>
+          <div class="caixa-facts" id="caixaFacts"></div>
+        </div>
+
+        <div class="stat-grid" id="caixaMethods"></div>
+
+        <h2 class="section-title">Movimentações do dia</h2>
+        <div class="table-wrap" id="caixaTableWrap">
+          <table class="data">
+            <thead><tr><th>Hora</th><th>Movimento</th><th>Descrição</th><th>Forma</th><th class="num">Valor</th></tr></thead>
+            <tbody id="caixaBody"></tbody>
+          </table>
+        </div>
+        <div id="caixaEmpty" class="empty-state" style="display:none">Nenhuma movimentação neste dia.</div>
+      </section>
+
+      <!-- ================= FIADO ================= -->
+      <section class="screen" id="screen-fiado">
+        <div class="stat-grid">
+          <div class="stat-card warn">
+            <div class="label">Total em aberto</div>
+            <div class="value" id="fiadoTotalTop">R$ 0,00</div>
+            <div class="foot" id="fiadoCount"></div>
+          </div>
+          <div class="stat-card good">
+            <div class="label">Recebido de fiado no mês</div>
+            <div class="value" id="fiadoRecebidoMes">R$ 0,00</div>
+            <div class="foot" id="fiadoRecebidoMesSub"></div>
+          </div>
+        </div>
+        <h2 class="section-title">Clientes com fiado em aberto</h2>
+        <div id="fiadoList"></div>
+
+        <h2 class="section-title">Últimos recebimentos</h2>
+        <div id="fiadoPayments"></div>
+      </section>
+
+      <!-- ================= PRODUTOS ================= -->
+      <section class="screen" id="screen-produtos">
+        <div class="cadastro-grid">
+          <button class="btn btn-primary btn-full m-only m-form-toggle" type="button" data-mopen="productFormPanel">＋ Novo produto</button>
+          <div class="form-panel m-collapsed" id="productFormPanel">
+            <button class="link-btn m-only m-form-close" type="button" data-mclose="productFormPanel">Fechar</button>
+            <h3 id="prodFormTitle">Novo produto</h3>
+            <label class="field-label" for="prodName">Nome do produto</label>
+            <input type="text" id="prodName" placeholder="Ex: Cerveja Skol lata 350ml" autocomplete="off">
+
+            <label class="field-label" for="prodCategory">Categoria</label>
+            <input type="text" id="prodCategory" list="categoryOptions" placeholder="Ex: Cerveja" autocomplete="off">
+            <datalist id="categoryOptions"></datalist>
+
+            <label class="field-label">Imagem do produto (opcional)</label>
+            <div class="img-picker" id="prodImageBox">
+              <div class="img-preview" id="prodImagePreview"></div>
+              <div class="img-actions">
+                <button type="button" class="btn btn-outline btn-small" id="btnPickImage">Escolher imagem</button>
+                <button type="button" class="btn btn-danger-outline btn-small" id="btnRemoveImage" style="display:none">Remover imagem</button>
+                <div class="hint" id="prodImageHint">JPG ou PNG. No computador, dá para arrastar a foto até aqui.</div>
+              </div>
+              <input type="file" id="prodImageFile" accept="image/*" hidden>
+            </div>
+
+            <div class="row-2">
+              <div>
+                <label class="field-label" for="prodCost">Valor de custo (R$)</label>
+                <input type="text" inputmode="decimal" id="prodCost" placeholder="0,00" autocomplete="off">
+              </div>
+              <div>
+                <label class="field-label" for="prodPrice">Valor de venda (R$)</label>
+                <input type="text" inputmode="decimal" id="prodPrice" placeholder="0,00" autocomplete="off">
+              </div>
+            </div>
+            <div class="hint" id="marginHint"></div>
+            <div class="row-2">
+              <div>
+                <label class="field-label" for="prodStock" id="prodStockLabel">Estoque inicial</label>
+                <input type="text" inputmode="numeric" id="prodStock" placeholder="0" autocomplete="off">
+              </div>
+              <div>
+                <label class="field-label" for="prodMinStock">Estoque mínimo</label>
+                <input type="text" inputmode="numeric" id="prodMinStock" placeholder="0" autocomplete="off">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-outline" id="btnCancelProductEdit" style="display:none">Cancelar</button>
+              <button class="btn btn-primary" id="btnSaveProduct">Adicionar produto</button>
+            </div>
+          </div>
+          <div>
+            <div class="section-head">
+              <h2 class="section-title" style="margin-top:0">Produtos cadastrados</h2>
+              <span class="summary" id="prodSummary"></span>
+            </div>
+            <input type="text" id="prodSearch" class="list-search" placeholder="Buscar produto…" autocomplete="off">
+            <div class="chip-row" id="prodCatChips"></div>
+            <div id="productList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= CLIENTES ================= -->
+      <section class="screen" id="screen-clientes">
+        <div class="cadastro-grid">
+          <button class="btn btn-primary btn-full m-only m-form-toggle" type="button" data-mopen="customerFormPanel">＋ Novo cliente</button>
+          <div class="form-panel m-collapsed" id="customerFormPanel">
+            <button class="link-btn m-only m-form-close" type="button" data-mclose="customerFormPanel">Fechar</button>
+            <h3 id="custFormTitle">Novo cliente</h3>
+            <label class="field-label" for="custName">Nome do cliente</label>
+            <input type="text" id="custName" placeholder="Ex: João da Padaria" autocomplete="off">
+            <label class="field-label" for="custPhone">Telefone (opcional)</label>
+            <input type="tel" id="custPhone" placeholder="(00) 00000-0000" autocomplete="off">
+            <div class="form-actions">
+              <button class="btn btn-outline" id="btnCancelCustomerEdit" style="display:none">Cancelar</button>
+              <button class="btn btn-primary" id="btnSaveCustomer">Adicionar cliente</button>
+            </div>
+          </div>
+          <div>
+            <div class="section-head">
+              <h2 class="section-title" style="margin-top:0">Clientes cadastrados</h2>
+              <span class="summary" id="custSummary"></span>
+            </div>
+            <input type="text" id="custSearch" class="list-search" placeholder="Buscar cliente…" autocomplete="off">
+            <div id="customerList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= RELATÓRIO ================= -->
+      <section class="screen" id="screen-relatorio">
+        <div class="toolbar">
+          <div class="chip-row" id="reportPeriodChips"></div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="stat-card ok"><div class="label">Faturamento</div><div class="value" id="kpiTotal">R$ 0,00</div></div>
+          <div class="stat-card good"><div class="label">Lucro bruto</div><div class="value" id="kpiLucro">R$ 0,00</div></div>
+          <div class="stat-card"><div class="label">Margem sobre vendas</div><div class="value" id="kpiMargem">0%</div></div>
+          <div class="stat-card"><div class="label">Nº de vendas</div><div class="value" id="kpiCount">0</div></div>
+          <div class="stat-card"><div class="label">Ticket médio</div><div class="value" id="kpiAvg">R$ 0,00</div></div>
+          <div class="stat-card"><div class="label">Descontos dados</div><div class="value" id="kpiDesc">R$ 0,00</div></div>
+          <div class="stat-card warn"><div class="label">Gastos pagos</div><div class="value" id="kpiGastos">R$ 0,00</div></div>
+          <div class="stat-card good"><div class="label">Lucro líquido</div><div class="value" id="kpiLiquido">R$ 0,00</div></div>
+        </div>
+
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="ct-title" id="chartDailyTitle">Faturamento por dia</div>
+            <div class="chart-box"><div class="svg-chart" id="chartDaily"></div><div class="chart-empty" id="chartDailyEmpty">Nenhuma venda no período.</div></div>
+          </div>
+          <div class="chart-card">
+            <div class="ct-title">Formas de pagamento</div>
+            <div class="chart-box"><div class="svg-chart" id="chartMethods"></div><div class="chart-empty" id="chartMethodsEmpty">Nenhuma venda no período.</div></div>
+          </div>
+          <div class="chart-card">
+            <div class="ct-title">Produtos mais vendidos <span>(unidades)</span></div>
+            <div class="chart-box"><div class="svg-chart" id="chartTopProducts"></div><div class="chart-empty" id="chartTopProductsEmpty">Nenhuma venda no período.</div></div>
+          </div>
+          <div class="chart-card">
+            <div class="ct-title">Faturamento por categoria</div>
+            <div class="chart-box"><div class="svg-chart" id="chartCategories"></div><div class="chart-empty" id="chartCategoriesEmpty">Nenhuma venda no período.</div></div>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">Desempenho por produto</h2>
+          <button class="btn btn-outline btn-small export-btn" id="btnExportRelatorio">Exportar CSV</button>
+        </div>
+        <div class="table-wrap" id="reportTableWrap">
+          <table class="data">
+            <thead><tr><th>Produto</th><th>Categoria</th><th class="num">Qtd.</th><th class="num">Faturamento</th><th class="num">Lucro</th><th class="num">Lucro %</th></tr></thead>
+            <tbody id="reportBody"></tbody>
+            <tfoot id="reportFoot"></tfoot>
+          </table>
+        </div>
+        <div class="empty-state" id="reportEmpty" style="display:none">Nenhuma venda no período selecionado.</div>
+      </section>
+      <!-- ================= GASTOS ================= -->
+      <section class="screen" id="screen-gastos">
+        <div class="stat-grid">
+          <div class="stat-card warn">
+            <div class="label">Gastos pagos</div>
+            <div class="value" id="gStatPagos">R$ 0,00</div>
+            <div class="foot" id="gStatPagosSub"></div>
+          </div>
+          <div class="stat-card ok">
+            <div class="label">Contas a pagar</div>
+            <div class="value" id="gStatAberto">R$ 0,00</div>
+            <div class="foot" id="gStatAbertoSub"></div>
+          </div>
+          <div class="stat-card good">
+            <div class="label">Lucro líquido</div>
+            <div class="value" id="gStatLiquido">R$ 0,00</div>
+            <div class="foot" id="gStatLiquidoSub"></div>
+          </div>
+        </div>
+
+        <div class="cadastro-grid">
+          <button class="btn btn-primary btn-full m-only m-form-toggle" type="button" data-mopen="expenseFormPanel">＋ Novo gasto</button>
+          <div class="form-panel m-collapsed" id="expenseFormPanel">
+            <button class="link-btn m-only m-form-close" type="button" data-mclose="expenseFormPanel">Fechar</button>
+            <h3 id="expFormTitle">Novo gasto</h3>
+            <label class="field-label">Situação</label>
+            <div class="segmented" id="expStatusSeg">
+              <button data-st="pago" class="active">Já paguei</button>
+              <button data-st="apagar">Conta a pagar</button>
+            </div>
+
+            <label class="field-label" for="expDesc">Descrição</label>
+            <input type="text" id="expDesc" placeholder="Ex: Conta de luz, compra na distribuidora" autocomplete="off">
+
+            <label class="field-label" for="expCategory">Categoria</label>
+            <input type="text" id="expCategory" list="expCategoryOptions" placeholder="Ex: Aluguel" autocomplete="off">
+            <datalist id="expCategoryOptions"></datalist>
+
+            <div class="row-2">
+              <div>
+                <label class="field-label" for="expAmount">Valor (R$)</label>
+                <input type="text" inputmode="decimal" id="expAmount" placeholder="0,00" autocomplete="off">
+              </div>
+              <div>
+                <label class="field-label" for="expDate" id="expDateLabel">Data do pagamento</label>
+                <input type="date" id="expDate">
+              </div>
+            </div>
+
+            <div id="expMethodWrap">
+              <label class="field-label" for="expMethod">Forma de pagamento</label>
+              <select id="expMethod">
+                <option value="dinheiro">Dinheiro</option>
+                <option value="pix">Pix</option>
+                <option value="cartao_debito">Cartão débito</option>
+                <option value="cartao_credito">Cartão crédito</option>
+                <option value="boleto">Boleto</option>
+                <option value="transferencia">Transferência</option>
+              </select>
+            </div>
+
+            <label class="field-label" for="expNotes">Observação (opcional)</label>
+            <input type="text" id="expNotes" placeholder="Ex: nota fiscal 1234" autocomplete="off">
+
+            <div class="form-actions">
+              <button class="btn btn-outline" id="btnCancelExpenseEdit" style="display:none">Cancelar</button>
+              <button class="btn btn-primary" id="btnSaveExpense">Adicionar gasto</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="chart-card" style="margin-bottom:16px">
+              <div class="ct-title">Gastos por categoria <span>(pagos no período)</span></div>
+              <div class="chart-box compact">
+                <div class="svg-chart" id="chartGastosCat"></div>
+                <div class="chart-empty" id="chartGastosCatEmpty">Nenhum gasto pago no período.</div>
+              </div>
+            </div>
+            <div class="chip-row" id="gastosPeriodChips"></div>
+            <div class="toolbar">
+              <div class="chip-row" id="gastosStatusChips"></div>
+              <div class="toolbar-right">
+                <select id="gastosCat" aria-label="Categoria"></select>
+                <input type="text" id="gastosSearch" placeholder="Buscar gasto…" autocomplete="off">
+              </div>
+            </div>
+            <div class="section-head list-head">
+              <span class="summary" id="gastosSummary"></span>
+              <button class="btn btn-outline btn-small export-btn" id="btnExportGastos">Exportar CSV</button>
+            </div>
+            <div id="expenseList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= CONFIGURAÇÕES ================= -->
+      <section class="screen" id="screen-config">
+        <div class="config-grid">
+          <div class="panel">
+            <h2 class="section-title">Onde os dados ficam salvos</h2>
+            <div id="storageInfo"></div>
+
+            <div id="accountPanel" style="display:none">
+              <h3 class="sub-title">Conta</h3>
+              <p>Conectado como <b id="accountEmail">—</b></p>
+              <button class="btn btn-outline btn-small" id="btnLogout">Sair</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2 class="section-title">Backup</h2>
+            <p>Baixe um arquivo com todos os dados: produtos, clientes, vendas, recebimentos, gastos, usuários e o nome e logo do sistema. Guarde num pendrive, no e-mail ou na nuvem.</p>
+            <p class="muted" id="lastBackupInfo"></p>
+            <button class="btn btn-primary btn-small" id="btnBackup">Baixar backup</button>
+
+            <h3 class="sub-title">Restaurar backup</h3>
+            <p>Substitui todos os dados atuais pelos dados de um arquivo de backup. Use também para levar os dados para outro computador.</p>
+            <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+            <button class="btn btn-outline btn-small" id="btnRestore">Escolher arquivo de backup…</button>
+          </div>
+
+          <div class="panel" id="brandPanel">
+            <h2 class="section-title">Nome e logo do sistema</h2>
+            <p class="muted">Aparece no topo do menu, na aba do navegador e no comprovante compartilhado.</p>
+            <label class="field-label" for="brandNameInput">Nome</label>
+            <input type="text" id="brandNameInput" placeholder="Ex: Depósito do Zé" maxlength="40" autocomplete="off">
+            <label class="field-label">Logo (opcional)</label>
+            <div class="img-picker" id="brandLogoBox">
+              <div class="img-preview logo-preview" id="brandLogoPreview"></div>
+              <div class="img-actions">
+                <button type="button" class="btn btn-outline btn-small" id="btnPickLogo">Escolher imagem</button>
+                <button type="button" class="btn btn-danger-outline btn-small" id="btnRemoveLogo" style="display:none">Remover imagem</button>
+                <div class="hint">As margens e o fundo branco são retirados automaticamente. Também dá para arrastar a imagem até aqui.</div>
+              </div>
+              <input type="file" id="brandLogoFile" accept="image/*" hidden>
+            </div>
+            <label class="check brand-show" id="brandShowWrap"><input type="checkbox" id="brandShowName"> Mostrar o nome ao lado da logo</label>
+            <div class="brand-preview-wrap">
+              <span class="muted">Como vai ficar no menu:</span>
+              <div class="brand brand-preview" id="brandPreview"></div>
+            </div>
+            <p class="hint" id="brandLockNote" style="display:none">Só administradores podem mudar o nome e a logo.</p>
+            <div class="form-actions" id="brandActions">
+              <button class="btn btn-outline" id="btnBrandReset">Voltar ao padrão</button>
+              <button class="btn btn-primary" id="btnBrandSave">Salvar nome e logo</button>
+            </div>
+          </div>
+
+          <div class="panel" id="usersPanel">
+            <div class="section-head">
+              <h2 class="section-title">Usuários e senhas</h2>
+              <button class="btn btn-primary btn-small" id="btnNewUser">＋ Novo usuário</button>
+            </div>
+            <p class="muted" id="usersNote"></p>
+            <div class="pending-box" id="pendingUsers" style="display:none"></div>
+            <div id="usersList"></div>
+            <div class="my-account-actions">
+              <button class="btn btn-outline btn-small" id="btnMyPassword">Trocar minha senha</button>
+              <button class="btn btn-outline btn-small" id="btnMyEmail">Meu e-mail</button>
+            </div>
+          </div>
+
+          <div class="panel danger">
+            <h2 class="section-title">Apagar dados</h2>
+            <p>Remove todos os produtos, clientes, vendas, recebimentos e gastos. Os usuários, as senhas, o nome e a logo continuam. Útil para começar do zero depois de testar o sistema.</p>
+            <button class="btn btn-danger-outline btn-small" id="btnWipe">Apagar todos os dados</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="bottom" aria-label="Menu">
+    <button class="nav-btn active" data-goto="inicio"><span class="ic">◆</span>Início</button>
+    <button class="nav-btn" data-goto="vendas"><span class="ic">☰</span>Vendas</button>
+    <button class="nav-btn nav-main" data-goto="venda"><span class="ic">＋</span>Vender</button>
+    <button class="nav-btn" data-goto="fiado"><span class="ic">▤</span>Fiado<span class="nav-dot" id="fiadoDot"></span></button>
+    <button class="nav-btn" id="btnMore" type="button"><span class="ic">⋯</span>Mais<span class="nav-dot" id="moreDot"></span></button>
+  </nav>
+
+  <!-- Celular: resumo do carrinho sempre à mão -->
+  <div class="mobile-cart-bar" id="mobileCartBar" style="display:none">
+    <div class="mcb-info"><b id="mcbCount">0 itens</b><span id="mcbTotal">R$ 0,00</span></div>
+    <button class="btn btn-primary btn-small" id="btnMcb" type="button">Ver carrinho</button>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="modal" role="dialog" aria-modal="true">
+  <div class="modal-sheet" id="modalSheet"></div>
+</div>
+
+<div class="modal-overlay hidden" id="confirmModal" role="alertdialog" aria-modal="true">
+  <div class="modal-sheet">
+    <h3 id="confirmTitle">Confirmar</h3>
+    <div class="sub" id="confirmMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="confirmCancel">Voltar</button>
+      <button class="btn btn-primary" id="confirmOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+<div class="chart-tip" id="chartTip"></div>
+
+<!-- Tela de login (aparece só no modo Firebase) -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-loading" id="loginLoading">
+    <img class="login-logo" src="assets/logo-md-sistemas.png" alt="MD Sistemas" width="600" height="371">
+    Carregando…
+  </div>
+  <form class="login-card" id="loginForm" style="display:none" autocomplete="on" novalidate>
+    <img class="login-logo" src="assets/logo-md-sistemas.png" alt="MD Sistemas" width="600" height="371">
+    <div class="auth-tabs" id="authTabs" style="display:none">
+      <button type="button" data-auth="setup">Primeiro acesso</button>
+      <button type="button" data-auth="firstlogin">Já tenho conta</button>
+    </div>
+    <h3 id="loginTitle">Entrar</h3>
+    <div class="sub" id="loginSub"></div>
+    <div id="firstLoginBox" style="display:none">
+      <p class="fl-text" id="firstLoginText">Este aparelho ainda não tem nenhuma conta salva. Para entrar com a conta que você já usa em outro computador ou navegador, carregue o arquivo de backup de lá (<b>Configurações → Baixar backup</b>). Depois é só entrar com o mesmo usuário e senha.</p>
+      <input type="file" id="firstLoginFile" accept=".json,application/json" hidden>
+      <button type="button" class="btn btn-primary btn-full" id="btnFirstLoginRestore">Carregar arquivo de backup</button>
+      <p class="hint" id="firstLoginCloudHint">Para não precisar disso, use o modo Firebase: a conta e os dados ficam na nuvem e funcionam em qualquer aparelho (veja o README).</p>
+    </div>
+    <div id="loginFields">
+    <div class="setup-only">
+      <label class="field-label" for="setupName">Seu nome</label>
+      <input type="text" id="setupName" autocomplete="name" placeholder="Ex: Zé">
+    </div>
+    <label class="field-label" for="loginUser" id="loginUserLabel">Usuário ou e-mail</label>
+    <input type="text" id="loginUser" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label class="field-label" for="loginPass">Senha</label>
+    <input type="password" id="loginPass" autocomplete="current-password" required>
+    <div class="setup-only">
+      <label class="field-label" for="setupPass2">Repita a senha</label>
+      <input type="password" id="setupPass2" autocomplete="new-password">
+    </div>
+    <label class="check remember local-only"><input type="checkbox" id="loginRemember" checked> Manter conectado neste aparelho</label>
+    <div class="field-error" id="loginError"></div>
+    <button class="btn btn-primary btn-full" type="submit" id="btnLogin">Entrar</button>
+    <div class="login-links">
+      <button class="link-btn" type="button" id="btnForgot">Esqueci a senha</button>
+    </div>
+    </div>
+  </form>
+</div>
+
+<!-- Configuração (nome da loja e onde salvar os dados) -->
+<script src="config.js"></script>
+
+<!-- Base -->
+<script src="js/utils.js"></script>
+<script src="js/state.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/export.js"></script>
+<script src="js/share.js"></script>
+
+<!-- Telas -->
+<script src="js/screens/inicio.js"></script>
+<script src="js/screens/venda.js"></script>
+<script src="js/screens/vendas.js"></script>
+<script src="js/screens/caixa.js"></script>
+<script src="js/screens/fiado.js"></script>
+<script src="js/screens/produtos.js"></script>
+<script src="js/screens/clientes.js"></script>
+<script src="js/screens/relatorio.js"></script>
+<script src="js/screens/gastos.js"></script>
+<script src="js/screens/config.js"></script>
+
+<!-- Inicialização -->
+<script src="js/app.js"></script>
+</body>
+</html>
