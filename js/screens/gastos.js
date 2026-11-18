@@ -199,8 +199,7 @@ function renderGastos(){
   const r = periodRange(ui.gastosPeriod);
   const pagos = paidExpensesIn(r);
   const totalPago = sumBy(pagos, e => e.amount);
-  const vendas = state.sales.filter(s => isActive(s) && inRange(s.date, r));
-  const lucroBruto = sumBy(vendas, saleProfit);
+  const lucroBruto = sumBy(revenueEntries(r), e => e.profit);   // fiado só conta quando é recebido
   const abertas = state.expenses.filter(expenseIsOpen);
   const vencidas = abertas.filter(expenseIsOverdue);
   const periodLabel = (PERIODS.find(p => p[0] === ui.gastosPeriod) || ['', ''])[1].toLowerCase();

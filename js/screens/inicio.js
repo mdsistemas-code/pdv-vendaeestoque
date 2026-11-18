@@ -7,18 +7,19 @@
 function renderInicio(){
   const now = new Date();
   const today = dayKey(now);
-  const active = state.sales.filter(isActive);
-  const todaySales = active.filter(s => dayKey(new Date(s.date)) === today);
-  const monthSales = active.filter(s => inRange(s.date, periodRange('mes')));
-  const fatHoje = sumBy(todaySales, s => s.total);
-  const fatMes = sumBy(monthSales, s => s.total);
-  const lucroMes = sumBy(monthSales, saleProfit);
+  // Faturamento e lucro: venda fiado só conta quando é recebida (ver revenueEntries em utils.js)
+  const todayE = revenueEntries(periodRange('hoje'));
+  const monthE = revenueEntries(periodRange('mes'));
+  const fatHoje = sumBy(todayE, e => e.total);
+  const fatMes = sumBy(monthE, e => e.total);
+  const lucroMes = sumBy(monthE, e => e.profit);
+  const fiadoHoje = sumBy(state.sales.filter(s => isActive(s) && s.type === 'fiado' && dayKey(new Date(s.date)) === today), s => s.total);
   const debtors = new Set(openFiadoSales().map(s => s.customerId)).size;
 
   setText('statHoje', fmt(fatHoje));
-  setText('statHojeSub', plural(todaySales.length, 'venda', 'vendas'));
+  setText('statHojeSub', entriesSummary(todayE) + (fiadoHoje > 0 ? ' · ' + fmt(fiadoHoje) + ' vendido no fiado' : ''));
   setText('statFaturado', fmt(fatMes));
-  setText('statFaturadoSub', plural(monthSales.length, 'venda', 'vendas') + ' em ' + now.toLocaleDateString('pt-BR', { month: 'long' }));
+  setText('statFaturadoSub', entriesSummary(monthE) + ' em ' + now.toLocaleDateString('pt-BR', { month: 'long' }));
   setText('statLucro', fmt(lucroMes));
   setText('statLucroSub', fatMes > 0 ? 'Margem de ' + Math.round(lucroMes / fatMes * 100) + '% sobre as vendas' : 'Sem vendas no mês');
   const gastosMes = sumBy(paidExpensesIn(periodRange('mes')), e => e.amount);
@@ -63,19 +64,19 @@ function renderInicio(){
       : '<div class="empty-state">Nenhuma venda registrada ainda.<br><button class="link-btn" data-goto="venda">Fazer a primeira venda</button></div>';
   }
 
-  renderHomeCharts(active, monthSales, today);
+  renderHomeCharts(monthE, today);
 }
 
-function renderHomeCharts(active, monthSales, today){
+function renderHomeCharts(monthE, today){
   // Últimos 7 dias — hoje em destaque
   const r7 = periodRange('7');
-  const s7 = active.filter(s => inRange(s.date, r7));
+  const s7 = revenueEntries(r7);
   const b7 = timeBuckets(s7, r7);
   setChart('chartHome7', 'bar', {
     labels: b7.keys.map(k => k === today ? 'Hoje' : capitalize(keyToDate(k).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''))),
     values: b7.values,
     tipLabels: b7.tipLabels,
-    tipValues: b7.values.map((v, i) => fmt(v) + ' em ' + plural(b7.counts[i], 'venda', 'vendas')),
+    tipValues: b7.values.map((v, i) => bucketTip(b7, i)),
     colors: b7.keys.map(k => k === today ? '#9C6B1F' : '#DDB57A'),
     strongLabel: b7.keys.indexOf(today),
     showValues: true,
@@ -85,11 +86,11 @@ function renderHomeCharts(active, monthSales, today){
   }, s7.length === 0);
 
   // Faturamento por produto no mês
-  const top = aggregateProducts(monthSales).slice(0, 6);
+  const top = aggregateProducts(monthE).slice(0, 6);
   setChart('chartHomeProducts', 'hbar', {
     labels: top.map(x => x.name),
     values: top.map(x => x.revenue),
-    valueLabels: top.map(x => fmt(x.revenue) + ' · ' + x.qty + ' un.'),
+    valueLabels: top.map(x => fmt(x.revenue) + ' · ' + fmtQty(x.qty) + ' un.'),
     color: '#C8872E',
     aria: 'Faturamento por produto no mês',
     clickHint: 'Clique para ver as vendas deste produto',
@@ -97,15 +98,15 @@ function renderHomeCharts(active, monthSales, today){
   }, top.length === 0);
 
   // Formas de pagamento no mês
-  const mt = methodTotals(monthSales);
+  const mt = methodTotals(monthE);
   setChart('chartHomeMethods', 'donut', {
-    labels: mt.keys.map(k => METHOD_LABELS[k] || k),
+    labels: mt.keys.map(revenueMethodLabel),
     values: mt.values,
     colors: mt.keys.map(k => METHOD_COLORS[k] || '#A4AEA8'),
     centerLabel: 'no mês',
     aria: 'Formas de pagamento no mês',
     clickHint: 'Clique para ver essas vendas',
-    onClick: i => openVendasFiltered({ period: 'mes', method: mt.keys[i] })
+    onClick: i => openRevenueMethod(mt.keys[i], 'mes')
   }, mt.keys.length === 0);
 }
 

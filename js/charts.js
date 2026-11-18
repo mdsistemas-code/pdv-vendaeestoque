@@ -249,22 +249,24 @@ function openCaixaDay(key){ ui.caixaDate = key; goTo('caixa'); }
 /* =========================================================
    Agregações usadas pelos gráficos
    ========================================================= */
-function aggregateProducts(sales){
+// Recebe os lançamentos de revenueEntries(): fiado recebido em parte entra em parte
+function aggregateProducts(entries){
   const map = new Map();
-  sales.forEach(s => (s.items || []).forEach(it => {
+  entries.forEach(en => (en.sale.items || []).forEach(it => {
     const key = it.productId || it.name;
     const p = getProduct(it.productId);
     let e = map.get(key);
     if (!e) { e = { name: p ? p.name : it.name, category: it.category || (p && p.category) || 'Outros', qty: 0, revenue: 0, profit: 0 }; map.set(key, e); }
-    e.qty += it.qty;
-    e.revenue += itemNet(it);
-    e.profit += (it.price - itemCost(it)) * it.qty - (it.discount || 0);
+    e.qty += it.qty * en.frac;
+    e.revenue += itemNet(it) * en.frac;
+    e.profit += ((it.price - itemCost(it)) * it.qty - (it.discount || 0)) * en.frac;
   }));
-  return [...map.values()].map(e => Object.assign(e, { revenue: round2(e.revenue), profit: round2(e.profit) })).sort((a, b) => b.revenue - a.revenue);
+  return [...map.values()].map(e => Object.assign(e, { qty: Math.round(e.qty * 100) / 100, revenue: round2(e.revenue), profit: round2(e.profit) })).sort((a, b) => b.revenue - a.revenue);
 }
 
 function capitalize(t){ return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; }
 
+// Recebe os lançamentos de revenueEntries(). counts = vendas à vista; recs = recebimentos de fiado
 function timeBuckets(sales, range){
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today0); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -278,17 +280,23 @@ function timeBuckets(sales, range){
     end = tomorrow;
   }
   const days = Math.max(1, Math.round((end - start) / 86400000));
-  const out = { labels: [], values: [], counts: [], keys: [], tipLabels: [], unit: 'dia' };
+  const out = { labels: [], values: [], counts: [], recs: [], keys: [], tipLabels: [], unit: 'dia' };
+  const recSets = {};
+  const count = (cnt, k, s) => {
+    if (s.kind === 'fiado') (recSets[k] = recSets[k] || new Set()).add(s.paymentId);
+    else cnt[k] = (cnt[k] || 0) + 1;
+  };
+  const recsOf = k => recSets[k] ? recSets[k].size : 0;
 
   if (days <= 1) {
     const tot = new Array(24).fill(0), cnt = new Array(24).fill(0);
-    sales.forEach(s => { const hr = new Date(s.date).getHours(); tot[hr] += s.total; cnt[hr]++; });
+    sales.forEach(s => { const hr = new Date(s.date).getHours(); tot[hr] += s.total; count(cnt, hr, s); });
     let first = tot.findIndex(v => v > 0);
     let last = 23 - [...tot].reverse().findIndex(v => v > 0);
     if (first < 0) { first = 8; last = 20; }
     first = Math.min(first, 8); last = Math.max(last, 20);
     for (let h = first; h <= last; h++) {
-      out.labels.push(pad2(h) + 'h'); out.values.push(round2(tot[h])); out.counts.push(cnt[h]);
+      out.labels.push(pad2(h) + 'h'); out.values.push(round2(tot[h])); out.counts.push(cnt[h]); out.recs.push(recsOf(h));
       out.keys.push(dayKey(start)); out.tipLabels.push(pad2(h) + ':00 às ' + pad2(h) + ':59');
     }
     out.unit = 'hora';
@@ -296,24 +304,24 @@ function timeBuckets(sales, range){
   }
   if (days <= 62) {
     const tot = {}, cnt = {};
-    sales.forEach(s => { const k = dayKey(new Date(s.date)); tot[k] = (tot[k] || 0) + s.total; cnt[k] = (cnt[k] || 0) + 1; });
+    sales.forEach(s => { const k = dayKey(new Date(s.date)); tot[k] = (tot[k] || 0) + s.total; count(cnt, k, s); });
     for (let i = 0; i < days; i++) {
       const d = new Date(start); d.setDate(d.getDate() + i);
       const k = dayKey(d);
       out.labels.push(pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1));
-      out.values.push(round2(tot[k] || 0)); out.counts.push(cnt[k] || 0); out.keys.push(k);
+      out.values.push(round2(tot[k] || 0)); out.counts.push(cnt[k] || 0); out.recs.push(recsOf(k)); out.keys.push(k);
       out.tipLabels.push(capitalize(d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' })));
     }
     out.unit = 'dia';
     return out;
   }
   const tot = {}, cnt = {};
-  sales.forEach(s => { const d = new Date(s.date); const k = d.getFullYear() + '-' + d.getMonth(); tot[k] = (tot[k] || 0) + s.total; cnt[k] = (cnt[k] || 0) + 1; });
+  sales.forEach(s => { const d = new Date(s.date); const k = d.getFullYear() + '-' + d.getMonth(); tot[k] = (tot[k] || 0) + s.total; count(cnt, k, s); });
   const cur = new Date(start.getFullYear(), start.getMonth(), 1);
   while (cur < end) {
     const k = cur.getFullYear() + '-' + cur.getMonth();
     out.labels.push(cur.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', ''));
-    out.values.push(round2(tot[k] || 0)); out.counts.push(cnt[k] || 0); out.keys.push(null);
+    out.values.push(round2(tot[k] || 0)); out.counts.push(cnt[k] || 0); out.recs.push(recsOf(k)); out.keys.push(null);
     out.tipLabels.push(capitalize(cur.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })));
     cur.setMonth(cur.getMonth() + 1);
   }
@@ -321,9 +329,23 @@ function timeBuckets(sales, range){
   return out;
 }
 
+// Recebe os lançamentos de revenueEntries(): o fiado aparece como "Fiado recebido"
 function methodTotals(sales){
   const m = {};
-  sales.forEach(s => { const k = methodKey(s); m[k] = round2((m[k] || 0) + s.total); });
+  sales.forEach(s => { const k = s.method || methodKey(s); m[k] = round2((m[k] || 0) + s.total); });
   const keys = Object.keys(m).filter(k => m[k] > 0).sort((a, b) => m[b] - m[a]);
   return { keys, values: keys.map(k => m[k]) };
+}
+
+// Texto do balão de um dia/hora/mês: "R$ 50,00 — 3 vendas + 1 fiado recebido"
+function bucketTip(b, i){
+  const parts = [];
+  if (b.counts[i]) parts.push(plural(b.counts[i], 'venda', 'vendas'));
+  if (b.recs[i]) parts.push(plural(b.recs[i], 'fiado recebido', 'fiados recebidos'));
+  return fmt(b.values[i]) + (parts.length ? ' — ' + parts.join(' + ') : '');
+}
+// Clique numa fatia de "Formas de pagamento": o fiado recebido abre a tela Fiado
+function openRevenueMethod(key, period){
+  if (key === 'fiado') goTo('fiado');
+  else openVendasFiltered({ period, method: key });
 }

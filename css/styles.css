@@ -312,6 +312,16 @@ input.invalid{ border-color:var(--rust); }
 }
 .total-bar .amount{ font-size:22px; color:var(--amber-dark); }
 #paymentMethodWrap .segmented + .segmented{ margin-top:8px; }
+/* Retirada / no local em cada item da comanda */
+.ci-mode{ display:inline-flex; padding:2px; gap:2px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); }
+.cart-item > .ci-mode{ grid-column:1 / -1; justify-self:start; margin:-4px 0 0 44px; }   /* linha própria, alinhada com o nome */
+.ci-mode button{ border:none; background:transparent; font-size:11.5px; font-weight:600; color:var(--muted); padding:3px 7px; border-radius:6px; cursor:pointer; white-space:nowrap; }
+.ci-mode button.active{ background:var(--amber); color:#fff; }
+.ci-mode button:focus-visible{ outline:2px solid var(--amber); outline-offset:1px; }
+@media (max-width: 860px), (pointer: coarse) and (max-height: 520px){
+  .ci-mode button{ padding:7px 12px; font-size:13px; }
+}
+.price-local{ font-size:12px; white-space:nowrap; }
 
 /* ---------- Tables ---------- */
 .table-wrap{
@@ -758,11 +768,12 @@ select:disabled{ opacity:.65; cursor:not-allowed; }
   .chip-row::-webkit-scrollbar{ display:none; }
   .chip{ flex-shrink:0; }
   .cart-panel{ padding:16px 14px; }
-  .cart-item{ grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"info rm" "qty total"; row-gap:8px; column-gap:10px; }
+  .cart-item{ grid-template-columns:minmax(0, 1fr) auto; grid-template-areas:"info rm" "mode mode" "qty total"; row-gap:8px; column-gap:10px; }
   .cart-item > :nth-child(1){ grid-area:info; }
   .cart-item .qty-ctrl{ grid-area:qty; }
   .cart-item .ci-total{ grid-area:total; align-self:center; }
   .cart-item > .icon-btn{ grid-area:rm; align-self:start; }
+  .cart-item > .ci-mode{ grid-area:mode; grid-column:auto; margin:0 0 0 44px; }
 
   /* Cadastros: o formulário só abre quando for usar */
   .m-only{ display:block; }

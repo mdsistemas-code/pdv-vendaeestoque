@@ -9,11 +9,12 @@ function saleReceiptText(s){
   const L = [];
   L.push('*' + storeName() + '*');
   L.push((isActive(s) ? 'Comprovante de venda ' : 'VENDA CANCELADA ') + saleLabel(s));
-  L.push(fmtDate(s.date) + ' às ' + fmtTime(s.date));
+  L.push(fmtDate(s.date) + ' às ' + fmtTime(s.date) + ' — ' + CONSUMO_LABELS[saleConsumo(s)].toLowerCase());
   if (s.editedAt) L.push('(alterada em ' + fmtDate(s.editedAt) + ' às ' + fmtTime(s.editedAt) + ')');
   if (s.customerId) L.push('Cliente: ' + customerName(s.customerId));
   L.push('');
-  (s.items || []).forEach(it => L.push(it.qty + 'x ' + it.name + ' — ' + fmt(itemNet(it)) +
+  const misto = saleConsumo(s) === 'misto';
+  (s.items || []).forEach(it => L.push(it.qty + 'x ' + it.name + (misto && itemConsumo(it, s) === 'local' ? ' (no local)' : '') + ' — ' + fmt(itemNet(it)) +
     (it.discount ? ' (desconto de ' + fmt(it.discount) + (itemDiscountNote(it) ? ': ' + itemDiscountNote(it) : '') + ')' : '')));
   L.push('');
   if (s.discount) {

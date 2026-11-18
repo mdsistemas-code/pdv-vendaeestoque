@@ -7,12 +7,15 @@
 function updateMarginHint(){
   const cost = parseMoney($('#prodCost').value);
   const price = parseMoney($('#prodPrice').value);
+  const localStr = $('#prodPriceLocal').value.trim();
+  const local = localStr ? parseMoney(localStr) : NaN;
   const el = $('#marginHint');
-  if (isNaN(price) || price <= 0) { el.textContent = ''; return; }
+  if (isNaN(price) || price <= 0) { el.textContent = localStr ? 'Preencha também o valor para retirada.' : ''; return; }
   const c = isNaN(cost) ? 0 : cost;
-  const m = round2(price - c);
   if (c <= 0) { el.textContent = 'Informe o custo para ver o lucro por unidade.'; return; }
-  el.innerHTML = 'Lucro por unidade: <span class="' + (m >= 0 ? 'pos' : 'neg') + '">' + fmt(m) + ' (' + Math.round(m / c * 100) + '% sobre o custo)</span>';
+  const part = (label, v) => { const m = round2(v - c); return label + ' <span class="' + (m >= 0 ? 'pos' : 'neg') + '">' + fmt(m) + ' (' + Math.round(m / c * 100) + '%)</span>'; };
+  el.innerHTML = 'Lucro por unidade: ' + part('retirada', price) +
+    (!isNaN(local) && local > 0 ? ' · ' + part('no local', local) : localStr ? ' · <span class="neg">valor no local inválido</span>' : '');
 }
 
 /* ---------- Imagem do produto ---------- */
@@ -144,7 +147,7 @@ function resetProductForm(){
   setText('prodStockLabel', 'Estoque inicial');
   $('#btnCancelProductEdit').style.display = 'none';
   $('#productFormPanel').classList.remove('editing');
-  ['prodName', 'prodCategory', 'prodCost', 'prodPrice', 'prodStock', 'prodMinStock'].forEach(id => { $('#' + id).value = ''; });
+  ['prodName', 'prodCategory', 'prodCost', 'prodPrice', 'prodPriceLocal', 'prodStock', 'prodMinStock'].forEach(id => { $('#' + id).value = ''; });
   ui.prodImage = null;
   renderImagePicker();
   setText('prodImageHint', 'JPG ou PNG. No computador, dá para arrastar a foto até aqui.');
@@ -165,6 +168,7 @@ function editProduct(id){
   $('#prodCategory').value = p.category || '';
   $('#prodCost').value = p.costPrice ? fmtInput(p.costPrice) : '';
   $('#prodPrice').value = fmtInput(p.price || 0);
+  $('#prodPriceLocal').value = hasLocalPrice(p) ? fmtInput(p.priceLocal) : '';
   $('#prodStock').value = String(p.stock || 0);
   $('#prodMinStock').value = p.minStock ? String(p.minStock) : '';
   ui.prodImage = safeImage(p.image);
@@ -184,6 +188,8 @@ async function saveProduct(){
   const costStr = $('#prodCost').value.trim();
   const cost = costStr ? parseMoney(costStr) : 0;
   const price = parseMoney($('#prodPrice').value);
+  const localStr = $('#prodPriceLocal').value.trim();
+  const priceLocal = localStr ? parseMoney(localStr) : null;   // vazio = mesmo valor da retirada
   const stockStr = $('#prodStock').value.trim();
   const minStr = $('#prodMinStock').value.trim();
   const stock = stockStr ? parseQty(stockStr) : 0;
@@ -191,14 +197,15 @@ async function saveProduct(){
 
   if (!name) { toast('Digite o nome do produto.', 'error'); $('#prodName').focus(); return; }
   if (isNaN(cost) || cost < 0) { toast('Valor de custo inválido.', 'error'); $('#prodCost').focus(); return; }
-  if (isNaN(price) || price <= 0) { toast('Digite um valor de venda válido.', 'error'); $('#prodPrice').focus(); return; }
+  if (isNaN(price) || price <= 0) { toast('Digite o valor para retirada.', 'error'); $('#prodPrice').focus(); return; }
+  if (priceLocal !== null && (isNaN(priceLocal) || priceLocal <= 0)) { toast('Valor para consumo no local inválido. Deixe em branco para usar o mesmo da retirada.', 'error'); $('#prodPriceLocal').focus(); return; }
   if (isNaN(stock)) { toast('O estoque precisa ser um número inteiro.', 'error'); $('#prodStock').focus(); return; }
   if (isNaN(minStock)) { toast('O estoque mínimo precisa ser um número inteiro.', 'error'); $('#prodMinStock').focus(); return; }
   if (state.products.some(p => p.id !== ui.editingProductId && p.name.trim().toLowerCase() === name.toLowerCase())) {
     toast('Já existe um produto com esse nome.', 'error'); $('#prodName').focus(); return;
   }
 
-  const data = { name, category, costPrice: cost, price, stock, minStock, image: safeImage(ui.prodImage) };
+  const data = { name, category, costPrice: cost, price, priceLocal, stock, minStock, image: safeImage(ui.prodImage) };
   const editing = ui.editingProductId;
   const btn = $('#btnSaveProduct');
   btn.disabled = true;
@@ -207,7 +214,7 @@ async function saveProduct(){
       ? db.collection('products').doc(editing).update(data)
       : db.collection('products').add(Object.assign({ createdAt: new Date().toISOString() }, data)));
     toast(editing ? 'Produto atualizado.' : name + ' adicionado.');
-    if (cost > price) toast('Atenção: o custo está maior que o valor de venda.', 'error');
+    if (cost > price || (priceLocal && cost > priceLocal)) toast('Atenção: o custo está maior que o valor de venda.', 'error');
     resetProductForm();
     if (canAutoFocus()) $('#prodName').focus();
   } catch (e) {
@@ -222,7 +229,7 @@ async function deleteProduct(id){
   if (!ok) return;
   try {
     await withSave(() => db.collection('products').doc(id).delete());
-    delete cart[id];
+    removeProductFromCart(id);
     if (ui.editingProductId === id) resetProductForm();
     toast('Produto removido.');
   } catch (e) { toast(errMsg(e, 'Não foi possível remover o produto.'), 'error'); }
@@ -280,6 +287,7 @@ function productRowHTML(p){
       </div>
       <div class="right">
         <span class="amount amber">${fmt(p.price)}</span>
+        ${hasLocalPrice(p) ? '<span class="muted price-local">no local ' + fmt(p.priceLocal) + '</span>' : ''}
         <div class="row-actions">
           <button class="btn btn-outline btn-xs" data-stock="${p.id}">Entrada</button>
           <button class="btn btn-outline btn-xs" data-pedit="${p.id}">Editar</button>
@@ -326,6 +334,7 @@ $('#btnSaveProduct').addEventListener('click', saveProduct);
 $('#btnCancelProductEdit').addEventListener('click', resetProductForm);
 $('#prodCost').addEventListener('input', updateMarginHint);
 $('#prodPrice').addEventListener('input', updateMarginHint);
+$('#prodPriceLocal').addEventListener('input', updateMarginHint);
 $('#prodSearch').addEventListener('input', e => { ui.prodSearch = e.target.value; renderProdutos(); });
 $$('#productFormPanel input').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveProduct(); } }));
 $('#btnPickImage').addEventListener('click', () => $('#prodImageFile').click());

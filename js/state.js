@@ -40,6 +40,7 @@ const SCREEN_TITLES = { inicio:'Início', venda:'Nova venda', vendas:'Vendas', c
 const METHOD_LABELS = { dinheiro:'Dinheiro', pix:'Pix', cartao_debito:'Cartão débito', cartao_credito:'Cartão crédito', fiado:'Fiado', nao_informado:'Não informado' };
 const METHOD_COLORS = { dinheiro:'#3F8A63', pix:'#2E8C99', cartao_debito:'#C8872E', cartao_credito:'#7A5AA8', fiado:'#B14A32', nao_informado:'#A4AEA8' };
 const PAY_METHODS = ['dinheiro','pix','cartao_debito','cartao_credito'];
+const CONSUMO_LABELS = { retirada:'Retirada', local:'Consumo no local', misto:'Retirada e consumo no local' };
 const CAT_PALETTE = ['#C8872E','#3F8A63','#2E8C99','#7A5AA8','#B14A32','#8C7B3E','#4F7CAC','#C46A8A','#5C6B73','#A4AEA8'];
 // Gastos (despesas)
 const EXPENSE_CATEGORIES = ['Água e luz','Aluguel','Combustível e frete','Compra de mercadoria','Embalagens','Funcionários','Impostos e taxas','Internet e telefone','Manutenção','Outros'];

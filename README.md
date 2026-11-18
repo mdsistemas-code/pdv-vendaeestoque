@@ -159,6 +159,18 @@ A foto é reduzida automaticamente (até 400 px) e comprimida antes de salvar, e
 
 ---
 
+## Retirada e consumo no local
+
+O produto pode ter dois preços: **Venda: retirada** (obrigatório) e **Venda: no local** (opcional). Se o valor no local ficar em branco, o produto custa o mesmo nas duas situações. A lista de produtos mostra o preço no local abaixo do de retirada.
+
+Na comanda (carrinho), **cada produto** tem a escolha **Retirada | No local**, e o preço daquele produto muda na hora. O produto entra na comanda como retirada. Clicar de novo num produto que já está na comanda soma na mesma linha, na forma que ela já tem: se você passou a Skol para **No local**, os próximos cliques na Skol também entram no local. O cartão do produto mostra o preço da forma em que ele vai entrar. Depois de cada venda, a comanda começa vazia.
+
+A forma de consumo fica gravada em cada item da venda. Nos detalhes, na lista de vendas, no comprovante e na exportação CSV, a venda aparece como **Retirada**, **Consumo no local** ou **Retirada e consumo no local**. Neste último caso, os itens consumidos no depósito vêm marcados com "no local".
+
+Ao editar uma venda, cada item mantém o preço da época enquanto continuar na mesma forma de consumo. Se você mudar a forma de um item durante a edição, ele passa a usar o preço atual do cadastro.
+
+---
+
 ## Descontos na venda
 
 - **Desconto por item:** no carrinho, clique em **＋ desconto** no produto e escolha **%** ou **R$ por unidade**. O desconto vale para todas as unidades do produto: um item de R$ 10,00 com R$ 1,00 de desconto fica R$ 9,00 cada, e as unidades adicionadas depois já entram com esse preço.
@@ -177,6 +189,17 @@ Em **Vendas**, clique na venda e depois em **Editar venda**. Ela volta para o ca
 - A venda mantém o número e a data originais. Cada alteração fica registrada nos detalhes, com o total e os itens de antes.
 - Se uma venda fiado já recebeu algum pagamento, o tipo e o cliente ficam travados, e o novo total não pode ser menor que o valor já recebido.
 - Para desfazer a venda inteira, use **Cancelar venda**.
+
+---
+
+## Fiado no faturamento e no lucro
+
+Uma venda fiado só entra no **faturamento** e no **lucro** quando o dinheiro é recebido, na data do recebimento. Se o cliente pagar só uma parte, entra a parte paga e o lucro proporcional: recebeu metade da compra, entra metade do valor e metade do lucro.
+
+- Na tela **Início**, o cartão **Faturado hoje** mostra à parte quanto foi vendido no fiado no dia.
+- No **Relatório**, **Nº de vendas**, **Ticket médio** e **Descontos dados** continuam contando todas as vendas feitas no período, inclusive as fiado.
+- Nos gráficos de forma de pagamento, o dinheiro que veio do fiado aparece como **Fiado recebido**.
+- O **Caixa do dia** não mudou: ele já mostrava o fiado vendido e o fiado recebido separados.
 
 ---
 

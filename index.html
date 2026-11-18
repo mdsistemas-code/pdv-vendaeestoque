@@ -69,7 +69,7 @@
         </div>
         <div class="stat-grid">
           <div class="stat-card ok">
-            <div class="label">Vendido hoje</div>
+            <div class="label">Faturado hoje</div>
             <div class="value" id="statHoje">R$ 0,00</div>
             <div class="foot" id="statHojeSub"></div>
           </div>
@@ -319,14 +319,16 @@
               <input type="file" id="prodImageFile" accept="image/*" hidden>
             </div>
 
+            <label class="field-label" for="prodCost">Valor de custo (R$)</label>
+            <input type="text" inputmode="decimal" id="prodCost" placeholder="0,00" autocomplete="off">
             <div class="row-2">
               <div>
-                <label class="field-label" for="prodCost">Valor de custo (R$)</label>
-                <input type="text" inputmode="decimal" id="prodCost" placeholder="0,00" autocomplete="off">
+                <label class="field-label" for="prodPrice">Venda: retirada (R$)</label>
+                <input type="text" inputmode="decimal" id="prodPrice" placeholder="0,00" autocomplete="off">
               </div>
               <div>
-                <label class="field-label" for="prodPrice">Valor de venda (R$)</label>
-                <input type="text" inputmode="decimal" id="prodPrice" placeholder="0,00" autocomplete="off">
+                <label class="field-label" for="prodPriceLocal">Venda: no local (R$)</label>
+                <input type="text" inputmode="decimal" id="prodPriceLocal" placeholder="Igual à retirada" autocomplete="off">
               </div>
             </div>
             <div class="hint" id="marginHint"></div>
@@ -391,10 +393,10 @@
         </div>
 
         <div class="kpi-grid">
-          <div class="stat-card ok"><div class="label">Faturamento</div><div class="value" id="kpiTotal">R$ 0,00</div></div>
+          <div class="stat-card ok"><div class="label">Faturamento</div><div class="value" id="kpiTotal">R$ 0,00</div><div class="foot" id="kpiTotalSub"></div></div>
           <div class="stat-card good"><div class="label">Lucro bruto</div><div class="value" id="kpiLucro">R$ 0,00</div></div>
           <div class="stat-card"><div class="label">Margem sobre vendas</div><div class="value" id="kpiMargem">0%</div></div>
-          <div class="stat-card"><div class="label">Nº de vendas</div><div class="value" id="kpiCount">0</div></div>
+          <div class="stat-card"><div class="label">Nº de vendas</div><div class="value" id="kpiCount">0</div><div class="foot" id="kpiCountSub"></div></div>
           <div class="stat-card"><div class="label">Ticket médio</div><div class="value" id="kpiAvg">R$ 0,00</div></div>
           <div class="stat-card"><div class="label">Descontos dados</div><div class="value" id="kpiDesc">R$ 0,00</div></div>
           <div class="stat-card warn"><div class="label">Gastos pagos</div><div class="value" id="kpiGastos">R$ 0,00</div></div>

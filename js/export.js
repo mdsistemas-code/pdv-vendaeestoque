@@ -44,10 +44,10 @@ function saveCSV(filename, rows){
     .catch(() => toast('Não foi possível exportar o arquivo.', 'error'));
 }
 function exportVendas(){
-  const rows = [['Nº', 'Data', 'Hora', 'Cliente', 'Itens', 'Forma de pagamento', 'Situação', 'Subtotal', 'Desconto', 'Total', 'Atendente']];
+  const rows = [['Nº', 'Data', 'Hora', 'Cliente', 'Itens', 'Consumo', 'Forma de pagamento', 'Situação', 'Subtotal', 'Desconto', 'Total', 'Atendente']];
   filteredHistory().forEach(s => rows.push([
     saleLabel(s), fmtDate(s.date), fmtTime(s.date), s.customerId ? customerName(s.customerId) : 'Balcão',
-    itemsSummary(s), methodLabel(s), statusTag(s).replace(/<[^>]+>/g, ''),
+    itemsSummary(s), CONSUMO_LABELS[saleConsumo(s)], methodLabel(s), statusTag(s).replace(/<[^>]+>/g, ''),
     csvNum(saleSubtotal(s)), csvNum(s.discount || 0), csvNum(s.total), s.sellerName || ''
   ]));
   saveCSV('vendas-' + dayKey(new Date()) + '.csv', rows);
@@ -65,9 +65,10 @@ function exportCaixa(){
 function exportRelatorio(){
   const d = reportData();
   const rows = [['Produto', 'Categoria', 'Quantidade', 'Faturamento', 'Lucro']];
-  d.prods.forEach(p => rows.push([p.name, p.category, p.qty, csvNum(p.revenue), csvNum(p.profit)]));
+  d.prods.forEach(p => rows.push([p.name, p.category, fmtQty(p.qty), csvNum(p.revenue), csvNum(p.profit)]));
   rows.push([]);
   rows.push(['Faturamento total (com descontos)', '', '', csvNum(d.fat), csvNum(d.lucro)]);
+  rows.push(['Vendas fiado entram no faturamento e no lucro só quando são recebidas, na data do recebimento.']);
   const label = (PERIODS.find(p => p[0] === ui.reportPeriod) || ['', 'periodo'])[1].toLowerCase().replace(/\s+/g, '-');
   saveCSV('relatorio-' + label + '-' + dayKey(new Date()) + '.csv', rows);
 }

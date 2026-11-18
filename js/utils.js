@@ -81,6 +81,17 @@ function byName(a, b){ return String(a.name || '').localeCompare(String(b.name |
 function loadingHTML(){ return '<div class="loading">Carregando dados…</div>'; }
 
 function getProduct(id){ return state.products.find(p => p.id === id); }
+// Preço do produto conforme o consumo: no local usa o valor próprio, se tiver; senão, o de retirada
+function hasLocalPrice(p){ return !!p && typeof p.priceLocal === 'number' && p.priceLocal > 0; }
+function productPrice(p, consumo){ return consumo === 'local' && hasLocalPrice(p) ? p.priceLocal : (p ? p.price : 0); }
+// Forma de consumo de um item gravado. Vendas que gravaram só na venda inteira: vale a da venda; sem nada: retirada
+function itemConsumo(it, s){ return it.consumo === 'local' || it.consumo === 'retirada' ? it.consumo : (s && s.consumo === 'local' ? 'local' : 'retirada'); }
+// Da venda inteira, a partir dos itens: 'retirada', 'local' ou 'misto'
+function consumoOfItems(items, s){
+  const modes = new Set((items || []).map(it => itemConsumo(it, s)));
+  return modes.size > 1 ? 'misto' : modes.has('local') ? 'local' : 'retirada';
+}
+function saleConsumo(s){ return consumoOfItems(s.items, s); }
 function getCustomer(id){ return state.customers.find(c => c.id === id); }
 function getSale(id){ return state.sales.find(s => s.id === id); }
 function customerName(id){ if (!id) return ''; const c = getCustomer(id); return c ? c.name : 'Cliente removido'; }
@@ -103,7 +114,11 @@ function itemDiscountNote(it){
 }
 function itemNet(it){ return round2(it.qty * it.price - (it.discount || 0)); }
 function saleProfit(s){ return (s.items || []).reduce((a, it) => a + (it.price - itemCost(it)) * it.qty, 0) - (s.discount || 0); }
-function itemsSummary(s){ return (s.items || []).map(i => i.qty + 'x ' + i.name).join(', '); }
+// "2x Skol, 1x Gelo". Quando a venda mistura as duas formas, marca os itens consumidos no local
+function itemsSummary(s){
+  const misto = saleConsumo(s) === 'misto';
+  return (s.items || []).map(i => i.qty + 'x ' + i.name + (misto && itemConsumo(i, s) === 'local' ? ' (no local)' : '')).join(', ');
+}
 function sortedSales(){ return [...state.sales].sort((a, b) => new Date(b.date) - new Date(a.date)); }
 function saleRemaining(s){ return Math.max(0, round2(s.total - (s.paidAmount || 0))); }
 function openFiadoSales(customerId){
@@ -111,6 +126,75 @@ function openFiadoSales(customerId){
 }
 function customerDebt(id){ return round2(openFiadoSales(id).reduce((a, s) => a + saleRemaining(s), 0)); }
 function totalFiadoAberto(){ return round2(openFiadoSales().reduce((a, s) => a + saleRemaining(s), 0)); }
+
+/* =========================================================
+   Faturamento e lucro pelo recebimento
+   • Venda à vista: entra na data da venda.
+   • Venda fiado: só entra quando é recebida, na data de cada recebimento e na
+     proporção do valor recebido (recebeu metade → entra metade do valor e do lucro).
+   ========================================================= */
+let allocCache = { sales: null, payments: null, list: [] };
+// Liga cada recebimento de fiado às vendas que ele pagou: [{ date, amount, sale, paymentId }].
+// Recebimentos novos gravam isso na hora (allocations). Nos antigos, a conta é refeita
+// do jeito que o sistema fazia ao receber: paga primeiro as compras mais antigas em aberto.
+function fiadoAllocations(){
+  if (allocCache.sales === state.sales && allocCache.payments === state.payments) return allocCache.list;
+  const time = iso => new Date(iso).getTime();
+  const byId = new Map(state.sales.map(s => [s.id, s]));
+  const byCustomer = {};
+  state.sales.forEach(s => { if (s.type === 'fiado') (byCustomer[s.customerId] = byCustomer[s.customerId] || []).push(s); });
+  Object.keys(byCustomer).forEach(k => byCustomer[k].sort((a, b) => time(a.date) - time(b.date)));
+  const used = new Map();   // quanto de cada venda já foi pago
+  const list = [];
+  const take = (p, s, amount) => {
+    used.set(s.id, round2((used.get(s.id) || 0) + amount));
+    list.push({ date: p.date, amount: round2(amount), sale: s, paymentId: p.id });
+  };
+  [...state.payments].sort((a, b) => time(a.date) - time(b.date)).forEach(p => {
+    if (Array.isArray(p.allocations)) {
+      p.allocations.forEach(a => { const s = a && byId.get(a.saleId); if (s && a.amount > 0) take(p, s, a.amount); });
+      return;
+    }
+    let rest = round2(p.amount);
+    const pt = time(p.date);
+    for (const s of byCustomer[p.customerId] || []) {
+      if (rest <= 0.004 || time(s.date) > pt) break;
+      if (!isActive(s) && s.canceledAt && time(s.canceledAt) <= pt) continue;   // já estava cancelada
+      const free = round2(s.total - (used.get(s.id) || 0));
+      if (free <= 0.004) continue;
+      const amt = Math.min(free, rest);
+      take(p, s, amt);
+      rest = round2(rest - amt);
+    }
+  });
+  allocCache = { sales: state.sales, payments: state.payments, list };
+  return list;
+}
+
+// O que conta no faturamento e no lucro de um período (r = periodRange(...); null = tudo)
+function revenueEntries(r){
+  const out = [];
+  state.sales.forEach(s => {
+    if (isActive(s) && s.type !== 'fiado' && inRange(s.date, r))
+      out.push({ kind: 'venda', date: s.date, sale: s, frac: 1, total: s.total, profit: saleProfit(s), method: methodKey(s) });
+  });
+  fiadoAllocations().forEach(a => {
+    const s = a.sale;
+    if (!isActive(s) || !inRange(a.date, r) || !(s.total > 0)) return;   // venda cancelada não conta
+    const frac = Math.min(1, a.amount / s.total);
+    out.push({ kind: 'fiado', date: a.date, sale: s, frac, total: round2(s.total * frac), profit: saleProfit(s) * frac, method: 'fiado', paymentId: a.paymentId });
+  });
+  return out;
+}
+// "3 vendas + 1 fiado recebido"
+function entriesSummary(list){
+  const vendas = list.filter(e => e.kind === 'venda').length;
+  const recs = new Set(list.filter(e => e.kind === 'fiado').map(e => e.paymentId)).size;
+  return plural(vendas, 'venda', 'vendas') + (recs ? ' + ' + plural(recs, 'fiado recebido', 'fiados recebidos') : '');
+}
+function revenueMethodLabel(k){ return k === 'fiado' ? 'Fiado recebido' : (METHOD_LABELS[k] || k); }
+// Quantidade de um produto: fiado recebido em parte entra em parte (ex.: 1,5)
+function fmtQty(n){ const v = Math.round((Number(n) || 0) * 10) / 10; return Number.isInteger(v) ? String(v) : String(v).replace('.', ','); }
 function categoriesInUse(){ return [...new Set(state.products.map(p => p.category || 'Outros'))].sort((a, b) => a.localeCompare(b, 'pt-BR')); }
 function allCategories(){ return [...new Set([...DEFAULT_CATEGORIES, ...categoriesInUse()])].sort((a, b) => a.localeCompare(b, 'pt-BR')); }
 /* Imagem do produto: só aceita imagens embutidas (data:) geradas pelo sistema */

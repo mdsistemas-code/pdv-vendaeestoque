@@ -12,8 +12,9 @@ function openSaleDetails(id){
   const itemsDisc = saleItemsDiscount(s);
   const generalDisc = saleGeneralDiscount(s);
   const hasItemDisc = itemsDisc > 0;
+  const misto = saleConsumo(s) === 'misto';
   const rows = (s.items || []).map(it => `
-    <tr><td>${esc(it.name)}</td><td class="num">${it.qty}</td><td class="num">${fmt(it.price)}</td>${hasItemDisc ? `<td class="num">${it.discount ? '<span class="neg">− ' + fmt(it.discount) + '</span>' + (itemDiscountNote(it) ? ' <span class="muted">(' + itemDiscountNote(it) + ')</span>' : '') : '—'}</td>` : ''}<td class="num">${fmt(itemNet(it))}</td></tr>`).join('');
+    <tr><td>${esc(it.name)}${misto ? ' <span class="muted">· ' + (itemConsumo(it, s) === 'local' ? 'no local' : 'retirada') + '</span>' : ''}</td><td class="num">${it.qty}</td><td class="num">${fmt(it.price)}</td>${hasItemDisc ? `<td class="num">${it.discount ? '<span class="neg">− ' + fmt(it.discount) + '</span>' + (itemDiscountNote(it) ? ' <span class="muted">(' + itemDiscountNote(it) + ')</span>' : '') : '—'}</td>` : ''}<td class="num">${fmt(itemNet(it))}</td></tr>`).join('');
   const facts = [
     ['Subtotal', fmt(sub)],
     (hasItemDisc ? ['Descontos nos itens', '− ' + fmt(itemsDisc)] : null),
@@ -29,10 +30,10 @@ function openSaleDetails(id){
     <h3>Venda ${saleLabel(s)}</h3>
     <div class="sub">${fmtDate(s.date)} às ${fmtTime(s.date)} — ${s.customerId ? esc(customerName(s.customerId)) : 'Venda no balcão'}${s.sellerName ? ' — atendido por ' + esc(s.sellerName) : ''}</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-      ${statusTag(s)} <span class="tag neutral">${methodLabel(s)}</span>
+      ${statusTag(s)} <span class="tag neutral">${methodLabel(s)}</span> <span class="tag neutral">${CONSUMO_LABELS[saleConsumo(s)]}</span>
     </div>
     ${!active && s.canceledAt ? '<div class="hint">Cancelada em ' + fmtDate(s.canceledAt) + ' às ' + fmtTime(s.canceledAt) + '.</div>' : ''}
-    ${(s.edits || []).length ? `<div class="edit-history"><b>${plural(s.edits.length, 'alteração', 'alterações')}</b>${s.edits.slice().reverse().map(e => `<div>${fmtDate(e.at)} às ${fmtTime(e.at)}${e.by ? ' por ' + esc(e.by) : ''} — antes: ${fmt(e.totalAntes)} (${esc(e.formaAntes || '')}): ${esc(e.itensAntes || '')}</div>`).join('')}</div>` : ''}
+    ${(s.edits || []).length ? `<div class="edit-history"><b>${plural(s.edits.length, 'alteração', 'alterações')}</b>${s.edits.slice().reverse().map(e => `<div>${fmtDate(e.at)} às ${fmtTime(e.at)}${e.by ? ' por ' + esc(e.by) : ''} — antes: ${fmt(e.totalAntes)} (${esc(e.formaAntes || '')}${e.consumoAntes ? ', ' + esc(e.consumoAntes.toLowerCase()) : ''}): ${esc(e.itensAntes || '')}</div>`).join('')}</div>` : ''}
     <h4>Itens</h4>
     <div class="table-wrap">
       <table class="data">
@@ -114,7 +115,7 @@ function renderVendas(){
       <td class="nowrap">${fmtDate(s.date)} <span class="muted">${fmtTime(s.date)}</span></td>
       <td>${s.customerId ? esc(customerName(s.customerId)) : '<span class="muted">Balcão</span>'}</td>
       <td class="items-cell" title="${esc(itemsSummary(s))}">${esc(itemsSummary(s))}</td>
-      <td class="nowrap">${methodLabel(s)}</td>
+      <td class="nowrap">${methodLabel(s)}${saleConsumo(s) === 'local' ? ' <span class="muted">· no local</span>' : saleConsumo(s) === 'misto' ? ' <span class="muted">· retirada e no local</span>' : ''}</td>
       <td class="num"><b>${fmt(s.total)}</b></td>
       <td>${statusTag(s)}</td>
     </tr>`).join('');

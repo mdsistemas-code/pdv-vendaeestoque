@@ -6,25 +6,30 @@
    ========================================================= */
 function reportData(){
   const r = periodRange(ui.reportPeriod);
-  const fs = state.sales.filter(s => isActive(s) && inRange(s.date, r));
-  const fat = sumBy(fs, s => s.total);
-  const lucro = sumBy(fs, saleProfit);
-  const prods = aggregateProducts(fs);
+  // Faturamento, lucro, gráficos e produtos: venda fiado só conta quando é recebida
+  const entries = revenueEntries(r);
+  const fat = sumBy(entries, e => e.total);
+  const lucro = sumBy(entries, e => e.profit);
+  const fiadoRecebido = sumBy(entries.filter(e => e.kind === 'fiado'), e => e.total);
+  const prods = aggregateProducts(entries);
   const cats = {};
   prods.forEach(p => { cats[p.category] = round2((cats[p.category] || 0) + p.revenue); });
-  const methods = {};
-  fs.forEach(s => { const k = methodKey(s); methods[k] = round2((methods[k] || 0) + s.total); });
-  return { r, fs, fat, lucro, prods, cats, methods, descontos: sumBy(fs, s => s.discount || 0) };
+  // Nº de vendas, ticket médio e descontos: vendas feitas no período (à vista e fiado)
+  const fs = state.sales.filter(s => isActive(s) && inRange(s.date, r));
+  return { r, entries, fs, fat, lucro, fiadoRecebido, prods, cats, descontos: sumBy(fs, s => s.discount || 0) };
 }
 
 function renderRelatorio(){
   renderChips('#reportPeriodChips', PERIODS, ui.reportPeriod, v => { ui.reportPeriod = v; renderRelatorio(); });
   const d = reportData();
   setText('kpiTotal', fmt(d.fat));
+  setText('kpiTotalSub', d.fiadoRecebido > 0 ? 'Inclui ' + fmt(d.fiadoRecebido) + ' de fiado recebido' : 'Fiado entra quando é recebido');
   setText('kpiLucro', fmt(d.lucro));
   setText('kpiMargem', d.fat > 0 ? Math.round(d.lucro / d.fat * 100) + '%' : '—');
+  const nFiado = d.fs.filter(s => s.type === 'fiado').length;
   setText('kpiCount', String(d.fs.length));
-  setText('kpiAvg', fmt(d.fs.length ? d.fat / d.fs.length : 0));
+  setText('kpiCountSub', nFiado ? 'Inclui ' + nFiado + ' no fiado' : '');
+  setText('kpiAvg', fmt(d.fs.length ? sumBy(d.fs, s => s.total) / d.fs.length : 0));
   setText('kpiDesc', fmt(d.descontos));
   const gastos = sumBy(paidExpensesIn(d.r), e => e.amount);
   const liquido = round2(d.lucro - gastos);
@@ -38,48 +43,48 @@ function renderRelatorio(){
     const costTotal = p.revenue - p.profit;
     return `<tr>
       <td>${esc(p.name)}</td><td class="muted">${esc(p.category)}</td>
-      <td class="num">${p.qty}</td><td class="num">${fmt(p.revenue)}</td>
+      <td class="num">${fmtQty(p.qty)}</td><td class="num">${fmt(p.revenue)}</td>
       <td class="num ${p.profit >= 0 ? 'pos' : 'neg'}">${fmt(p.profit)}</td>
       <td class="num">${costTotal > 0 ? Math.round(p.profit / costTotal * 100) + '%' : '—'}</td>
     </tr>`;
   }).join('');
-  $('#reportFoot').innerHTML = d.prods.length ? `<tr><td colspan="2">Total (antes do desconto geral)</td><td class="num">${d.prods.reduce((a, p) => a + p.qty, 0)}</td><td class="num">${fmt(sumBy(d.prods, p => p.revenue))}</td><td class="num">${fmt(sumBy(d.prods, p => p.profit))}</td><td></td></tr>` : '';
+  $('#reportFoot').innerHTML = d.prods.length ? `<tr><td colspan="2">Total (antes do desconto geral)</td><td class="num">${fmtQty(d.prods.reduce((a, p) => a + p.qty, 0))}</td><td class="num">${fmt(sumBy(d.prods, p => p.revenue))}</td><td class="num">${fmt(sumBy(d.prods, p => p.profit))}</td><td></td></tr>` : '';
 
   renderReportCharts(d);
 }
 
 function renderReportCharts(d){
-  const b = timeBuckets(d.fs, d.r);
+  const b = timeBuckets(d.entries, d.r);
   const clickDay = b.unit === 'dia';
   $('#chartDailyTitle').innerHTML = 'Faturamento por ' + b.unit + (clickDay ? ' <span>(clique num dia para abrir o caixa)</span>' : '');
   setChart('chartDaily', 'bar', {
     labels: b.labels,
     values: b.values,
     tipLabels: b.tipLabels,
-    tipValues: b.values.map((v, i) => fmt(v) + ' em ' + plural(b.counts[i], 'venda', 'vendas')),
+    tipValues: b.values.map((v, i) => bucketTip(b, i)),
     color: '#C8872E',
     showValues: b.labels.length <= 12,
     aria: 'Faturamento por ' + b.unit,
     clickHint: clickDay ? 'Clique para abrir o caixa deste dia' : (b.unit === 'hora' ? 'Clique para ver as vendas de hoje' : ''),
     onClick: clickDay ? (i => openCaixaDay(b.keys[i])) : (b.unit === 'hora' ? (() => openVendasFiltered({ period: 'hoje' })) : null)
-  }, d.fs.length === 0);
+  }, d.entries.length === 0);
 
-  const mt = methodTotals(d.fs);
+  const mt = methodTotals(d.entries);
   setChart('chartMethods', 'donut', {
-    labels: mt.keys.map(k => METHOD_LABELS[k] || k),
+    labels: mt.keys.map(revenueMethodLabel),
     values: mt.values,
     colors: mt.keys.map(k => METHOD_COLORS[k] || '#A4AEA8'),
     centerLabel: 'no período',
     aria: 'Formas de pagamento',
     clickHint: 'Clique para ver essas vendas',
-    onClick: i => openVendasFiltered({ period: ui.reportPeriod, method: mt.keys[i] })
+    onClick: i => openRevenueMethod(mt.keys[i], ui.reportPeriod)
   }, mt.keys.length === 0);
 
   const topQty = [...d.prods].sort((a, b2) => b2.qty - a.qty).slice(0, 8);
   setChart('chartTopProducts', 'hbar', {
     labels: topQty.map(p => p.name),
     values: topQty.map(p => p.qty),
-    valueLabels: topQty.map(p => p.qty + ' un. · ' + fmt(p.revenue)),
+    valueLabels: topQty.map(p => fmtQty(p.qty) + ' un. · ' + fmt(p.revenue)),
     money: false,
     color: '#3F8A63',
     aria: 'Produtos mais vendidos',

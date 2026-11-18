@@ -24,13 +24,14 @@ function renderVenda(){
     const list = vendaFilteredProducts();
     grid.innerHTML = list.length ? list.map(p => {
       const out = availableStock(p.id) <= 0;
-      const inCart = cart[p.id] || 0;
+      const inCart = productQtyInCart(p.id);
+      const k = lineKey(p.id, productLineMode(p.id));   // preço do jeito que o produto vai entrar na comanda
       return `<button class="product-pick" data-add="${p.id}" ${out ? 'disabled' : ''}>
           ${inCart ? '<span class="in-cart">' + inCart + '</span>' : ''}
           ${productThumbHTML(p, 52, 'pp-thumb')}
           <span class="pp-body">
             <span class="pp-name">${esc(p.name)}</span>
-            <span class="pp-price">${cartDiscounts[p.id] ? '<s class="pp-old">' + fmt(linePrice(p.id)) + '</s> ' + fmt(unitNet(p.id)) : fmt(linePrice(p.id))}</span>
+            <span class="pp-price">${cartDiscounts[k] ? '<s class="pp-old">' + fmt(linePrice(k)) + '</s> ' + fmt(unitNet(k)) : fmt(linePrice(k))}</span>
             <span class="stock-pill ${out || isLow(p) ? 'low' : ''}">${out ? 'Sem estoque' : (p.stock || 0) + ' em estoque'}</span>
           </span>
         </button>`;
@@ -39,58 +40,102 @@ function renderVenda(){
   renderCart();
 }
 
-function addToCart(pid){
+/* ---------- Linhas da comanda ----------
+   Cada linha é um produto + forma de consumo: "idDoProduto|retirada" ou "idDoProduto|local".
+   Assim o mesmo produto pode estar na comanda das duas formas (ex.: 2 para beber aqui e 12 para levar). */
+function lineKey(pid, mode){ return pid + '|' + (mode === 'local' ? 'local' : 'retirada'); }
+function lineProduct(key){ return String(key).split('|')[0]; }
+function lineMode(key){ return String(key).split('|')[1] === 'local' ? 'local' : 'retirada'; }
+function productQtyInCart(pid){ return Object.keys(cart).reduce((a, k) => a + (lineProduct(k) === pid ? (cart[k] || 0) : 0), 0); }
+function removeProductFromCart(pid){ Object.keys(cart).forEach(k => { if (lineProduct(k) === pid) { delete cart[k]; delete cartDiscounts[k]; } }); }
+// Clicar num produto soma na linha que ele já tem na comanda, na forma que ela já está
+// (assim uma mesa bebendo no local não ganha uma linha de retirada a cada clique). Produto novo entra como retirada.
+let lastLineMode = {};   // idDoProduto → última forma usada na comanda (vale quando o produto está nas duas)
+function productLineMode(pid){
+  const modes = Object.keys(cart).filter(k => lineProduct(k) === pid && cart[k] > 0).map(lineMode);
+  if (modes.length === 1) return modes[0];
+  if (modes.length > 1) return lastLineMode[pid] === 'local' ? 'local' : 'retirada';
+  return 'retirada';
+}
+
+// Adiciona uma unidade. mode = forma de consumo da linha (sem mode: ver productLineMode)
+function addToCart(pid, mode){
   const p = getProduct(pid);
   if (!p) return false;
-  const cur = cart[pid] || 0;
   const stock = availableStock(pid);
-  if (cur + 1 > stock) {
+  if (productQtyInCart(pid) + 1 > stock) {
     toast(stock <= 0 ? p.name + ' está sem estoque.' : 'Estoque insuficiente: só há ' + stock + ' un. de ' + p.name + '.', 'error');
     return false;
   }
-  cart[pid] = cur + 1;
+  const m = mode || productLineMode(pid);
+  const k = lineKey(pid, m);
+  cart[k] = (cart[k] || 0) + 1;
+  lastLineMode[pid] = m;
   renderVenda();
   return true;
 }
 
-function cartSubtotal(){
-  return round2(Object.keys(cart).reduce((a, pid) => a + (getProduct(pid) ? linePrice(pid) * cart[pid] : 0), 0));
+// Troca a forma de consumo de uma linha. Se já existir a linha do mesmo produto na outra forma, junta as duas.
+function setLineMode(key, mode){
+  const to = lineKey(lineProduct(key), mode);
+  if (to === key || !cart[key]) return;
+  lastLineMode[lineProduct(key)] = lineMode(to);
+  cart[to] = (cart[to] || 0) + cart[key];
+  if (cartDiscounts[key] && !cartDiscounts[to]) cartDiscounts[to] = cartDiscounts[key];
+  delete cart[key]; delete cartDiscounts[key];
 }
-/* ---------- Desconto por item ---------- */
-function linePrice(pid){ if (cartPrices[pid]) return cartPrices[pid].price; const p = getProduct(pid); return p ? p.price : 0; }
-function lineCost(pid){ if (cartPrices[pid]) return cartPrices[pid].cost; const p = getProduct(pid); return p ? (p.costPrice || 0) : 0; }
+
+function cartSubtotal(){
+  return round2(Object.keys(cart).reduce((a, k) => a + (getProduct(lineProduct(k)) ? linePrice(k) * cart[k] : 0), 0));
+}
+// Preço de cada unidade da linha, conforme a forma de consumo dela. Na edição de uma venda, os itens que
+// já estavam nela mantêm o preço da época enquanto continuarem na mesma forma de consumo.
+function linePrice(key){
+  if (cartPrices[key]) return cartPrices[key].price;
+  const p = getProduct(lineProduct(key));
+  return p ? productPrice(p, lineMode(key)) : 0;
+}
+function lineCost(key){
+  if (cartPrices[key]) return cartPrices[key].cost;
+  const pid = lineProduct(key);
+  const old = Object.keys(cartPrices).find(k => lineProduct(k) === pid);   // na edição: custo da época
+  if (old) return cartPrices[old].cost;
+  const p = getProduct(pid);
+  return p ? (p.costPrice || 0) : 0;
+}
 // Estoque disponível para esta venda: na edição, as unidades que já eram dela contam como disponíveis
 function availableStock(pid){ const p = getProduct(pid); return (p ? (p.stock || 0) : 0) + (editingSaleId ? (editOriginalQty[pid] || 0) : 0); }
-function lineGross(pid){ return round2(linePrice(pid) * (cart[pid] || 0)); }
+function lineGross(key){ return round2(linePrice(key) * (cart[key] || 0)); }
+/* ---------- Desconto por item ---------- */
 // O desconto vale para CADA unidade: R$ 10 com R$ 1 de desconto = R$ 9 cada,
 // e toda unidade adicionada depois já entra com o desconto.
-function unitDiscount(pid){
-  const d = cartDiscounts[pid];
-  if (!d || !getProduct(pid)) return 0;
-  const price = linePrice(pid);
+function unitDiscount(key){
+  const d = cartDiscounts[key];
+  if (!d || !getProduct(lineProduct(key))) return 0;
+  const price = linePrice(key);
   const v = d.type === 'pct' ? price * d.value / 100 : d.value;
   return Math.min(price, Math.max(0, v));
 }
-function unitNet(pid){ return round2(linePrice(pid) - unitDiscount(pid)); }
-function lineDiscount(pid){ return round2(Math.min(lineGross(pid), unitDiscount(pid) * (cart[pid] || 0))); }
-function cartDiscountTag(pid){
-  const d = cartDiscounts[pid];
+function unitNet(key){ return round2(linePrice(key) - unitDiscount(key)); }
+function lineDiscount(key){ return round2(Math.min(lineGross(key), unitDiscount(key) * (cart[key] || 0))); }
+function cartDiscountTag(key){
+  const d = cartDiscounts[key];
   if (!d) return '';
   return d.type === 'pct' ? '− ' + pctText(d.value) + '%' : '− ' + fmt(d.value) + ' cada';
 }
-function cartItemsDiscount(){ return round2(Object.keys(cart).reduce((a, pid) => a + lineDiscount(pid), 0)); }
+function cartItemsDiscount(){ return round2(Object.keys(cart).reduce((a, k) => a + lineDiscount(k), 0)); }
 
-function openItemDiscount(pid){
-  const p = getProduct(pid);
+function openItemDiscount(key){
+  const p = getProduct(lineProduct(key));
   if (!p) return;
-  const price = linePrice(pid);
-  const qty = cart[pid] || 0;
-  const gross = lineGross(pid);
-  const cur = cartDiscounts[pid];
+  const price = linePrice(key);
+  const qty = cart[key] || 0;
+  const gross = lineGross(key);
+  const cur = cartDiscounts[key];
   let type = cur ? cur.type : 'pct';
   const sheet = openModal(`
     <h3>Desconto no item</h3>
-    <div class="sub"><b>${esc(p.name)}</b> — ${fmt(price)} cada, ${qty} no carrinho. O desconto vale para todas as unidades.</div>
+    <div class="sub"><b>${esc(p.name)}</b> (${lineMode(key) === 'local' ? 'consumo no local' : 'retirada'}) — ${fmt(price)} cada, ${qty} no carrinho. O desconto vale para todas as unidades.</div>
     <label class="field-label">Tipo de desconto</label>
     <div class="segmented" id="idType">
       <button data-t="pct">Porcentagem (%)</button>
@@ -140,12 +185,12 @@ function openItemDiscount(pid){
   $('#idApply', sheet).addEventListener('click', () => {
     const r = calc();
     if (!r.ok) { toast(r.msg || 'Digite o desconto.', 'error'); input.focus(); return; }
-    cartDiscounts[pid] = { type, value: r.v };
+    cartDiscounts[key] = { type, value: r.v };
     closeModal();
     renderVenda();
   });
   const rm = $('#idRemove', sheet);
-  if (rm) rm.addEventListener('click', () => { delete cartDiscounts[pid]; closeModal(); renderVenda(); });
+  if (rm) rm.addEventListener('click', () => { delete cartDiscounts[key]; closeModal(); renderVenda(); });
   update();
 }
 
@@ -172,31 +217,37 @@ function renderEditState(){
 
 function renderCart(){
   renderEditState();
-  Object.keys(cart).forEach(pid => { if (!getProduct(pid) || cart[pid] <= 0) delete cart[pid]; });
-  Object.keys(cartDiscounts).forEach(pid => { if (!cart[pid]) delete cartDiscounts[pid]; });
-  const ids = Object.keys(cart);
-  const has = ids.length > 0;
+  Object.keys(cart).forEach(k => { if (!getProduct(lineProduct(k)) || cart[k] <= 0) delete cart[k]; });
+  Object.keys(cartDiscounts).forEach(k => { if (!cart[k]) delete cartDiscounts[k]; });
+  const keys = Object.keys(cart);
+  const has = keys.length > 0;
   $('#cartEmpty').style.display = has ? 'none' : 'block';
   $('#cartExtras').style.display = has ? 'block' : 'none';
   $('#btnClearCart').style.display = has ? '' : 'none';
-  $('#cartList').innerHTML = ids.map(pid => {
-    const p = getProduct(pid);
-    const gross = lineGross(pid);
-    const disc = lineDiscount(pid);
-    const d = cartDiscounts[pid];
+  $('#cartList').innerHTML = keys.map(k => {
+    const p = getProduct(lineProduct(k));
+    const mode = lineMode(k);
+    const gross = lineGross(k);
+    const disc = lineDiscount(k);
+    const d = cartDiscounts[k];
     const discBtn = d
-      ? `<button class="disc-tag" data-act="disc" data-id="${pid}" title="Alterar desconto">${cartDiscountTag(pid)}</button>`
-      : `<button class="link-btn ci-disc" data-act="disc" data-id="${pid}">＋ desconto</button>`;
-    const unitTxt = d ? '<s>' + fmt(linePrice(pid)) + '</s> ' + fmt(unitNet(pid)) + ' un.' : fmt(linePrice(pid)) + ' un.';
+      ? `<button class="disc-tag" data-act="disc" data-id="${k}" title="Alterar desconto">${cartDiscountTag(k)}</button>`
+      : `<button class="link-btn ci-disc" data-act="disc" data-id="${k}">＋ desconto</button>`;
+    const unitTxt = d ? '<s>' + fmt(linePrice(k)) + '</s> ' + fmt(unitNet(k)) + ' un.' : fmt(linePrice(k)) + ' un.';
+    const modeBtns = `<div class="ci-mode" role="group" aria-label="Consumo de ${esc(p.name)}">
+          <button data-act="mode" data-id="${k}" data-mode="retirada" class="${mode === 'retirada' ? 'active' : ''}">Retirada</button>
+          <button data-act="mode" data-id="${k}" data-mode="local" class="${mode === 'local' ? 'active' : ''}">No local</button>
+        </div>`;
     return `<div class="cart-item">
         <div class="ci-info">${productThumbHTML(p, 34, 'ci-thumb')}<div><div class="ci-name">${esc(p.name)}</div><div class="ci-meta">${unitTxt} ${discBtn}</div></div></div>
         <div class="qty-ctrl">
-          <button class="qty-btn" data-act="dec" data-id="${pid}" aria-label="Diminuir">−</button>
-          <span class="qty">${cart[pid]}</span>
-          <button class="qty-btn" data-act="inc" data-id="${pid}" aria-label="Aumentar">+</button>
+          <button class="qty-btn" data-act="dec" data-id="${k}" aria-label="Diminuir">−</button>
+          <span class="qty">${cart[k]}</span>
+          <button class="qty-btn" data-act="inc" data-id="${k}" aria-label="Aumentar">+</button>
         </div>
         <div class="ci-total">${disc ? '<s>' + fmt(gross) + '</s>' : ''}${fmt(gross - disc)}</div>
-        <button class="icon-btn" data-act="rm" data-id="${pid}" aria-label="Remover">✕</button>
+        <button class="icon-btn" data-act="rm" data-id="${k}" aria-label="Remover">✕</button>
+        ${modeBtns}
       </div>`;
   }).join('');
   renderCustomerSelect();
@@ -277,12 +328,16 @@ function getPaymentInfo(){
 
 // Valida o carrinho e monta os dados da venda (usado na venda nova e na edição)
 function buildSaleDraft(){
-  const ids = Object.keys(cart).filter(k => cart[k] > 0);
+  const ids = Object.keys(cart).filter(k => cart[k] > 0);   // chaves das linhas (produto + consumo)
   if (!ids.length) return null;
-  for (const pid of ids) {
-    const p = getProduct(pid);
-    if (!p) { delete cart[pid]; renderVenda(); toast('Um produto do carrinho foi removido do cadastro. Confira o carrinho.', 'error'); return null; }
-    if (cart[pid] > availableStock(pid)) { toast('Estoque insuficiente de ' + p.name + ' (disponível: ' + availableStock(pid) + ').', 'error'); return null; }
+  const perProduct = {};
+  for (const k of ids) {
+    const pid = lineProduct(k);
+    if (!getProduct(pid)) { delete cart[k]; renderVenda(); toast('Um produto do carrinho foi removido do cadastro. Confira o carrinho.', 'error'); return null; }
+    perProduct[pid] = (perProduct[pid] || 0) + cart[k];
+  }
+  for (const pid of Object.keys(perProduct)) {
+    if (perProduct[pid] > availableStock(pid)) { toast('Estoque insuficiente de ' + getProduct(pid).name + ' (disponível: ' + availableStock(pid) + ').', 'error'); return null; }
   }
 
   const subtotal = cartSubtotal();
@@ -310,18 +365,19 @@ function buildSaleDraft(){
     }
   }
 
-  const items = ids.map(pid => {
+  const items = ids.map(k => {
+    const pid = lineProduct(k);
     const p = getProduct(pid);
-    const d = cartDiscounts[pid];
+    const d = cartDiscounts[k];
     return {
-      productId: pid, name: p.name, category: p.category || 'Outros', qty: cart[pid], price: linePrice(pid), cost: lineCost(pid),
-      discount: lineDiscount(pid),
+      productId: pid, name: p.name, category: p.category || 'Outros', consumo: lineMode(k), qty: cart[k], price: linePrice(k), cost: lineCost(k),
+      discount: lineDiscount(k),
       discountPct: d && d.type === 'pct' ? d.value : null,
       discountUnit: d && d.type === 'valor' ? d.value : null
     };
   });
   return {
-    type: ui.saleType, customerId, items, subtotal, discount, itemsDiscount, generalDiscount, total,
+    type: ui.saleType, consumo: consumoOfItems(items), customerId, items, subtotal, discount, itemsDiscount, generalDiscount, total,
     paymentMethod: payment ? payment.method : null,
     paymentLabel: payment ? payment.label : null,
     cashReceived, change
@@ -400,18 +456,20 @@ async function startEditSale(id){
   cart = {}; cartDiscounts = {}; cartPrices = {}; editOriginalQty = {};
   (s.items || []).forEach(it => {
     const pid = it.productId;
-    cart[pid] = (cart[pid] || 0) + it.qty;
+    const k = lineKey(pid, itemConsumo(it, s));
+    cart[k] = (cart[k] || 0) + it.qty;
     editOriginalQty[pid] = (editOriginalQty[pid] || 0) + it.qty;
     const p = getProduct(pid);
-    cartPrices[pid] = { price: it.price, cost: typeof it.cost === 'number' ? it.cost : (p.costPrice || 0) };
-    if (it.discountPct) cartDiscounts[pid] = { type: 'pct', value: it.discountPct };
-    else if (it.discountUnit) cartDiscounts[pid] = { type: 'valor', value: it.discountUnit };
-    else if (it.discount) cartDiscounts[pid] = { type: 'valor', value: round2(it.discount / it.qty) };
+    cartPrices[k] = { price: it.price, cost: typeof it.cost === 'number' ? it.cost : (p.costPrice || 0) };
+    if (it.discountPct) cartDiscounts[k] = { type: 'pct', value: it.discountPct };
+    else if (it.discountUnit) cartDiscounts[k] = { type: 'valor', value: it.discountUnit };
+    else if (it.discount) cartDiscounts[k] = { type: 'valor', value: round2(it.discount / it.qty) };
   });
   const general = saleGeneralDiscount(s);
   $('#cartDiscount').value = general > 0 ? fmtInput(general) : '';
   $('#cashReceived').value = typeof s.cashReceived === 'number' ? fmtInput(s.cashReceived) : '';
   ui.saleType = s.type === 'fiado' ? 'fiado' : 'avista';
+  lastLineMode = {};
   const m = s.paymentMethod || 'dinheiro';
   if (m === 'cartao_debito' || m === 'cartao_credito') { ui.pm = 'cartao'; ui.cardType = m === 'cartao_credito' ? 'credito' : 'debito'; }
   else { ui.pm = m === 'pix' ? 'pix' : 'dinheiro'; ui.cardType = 'debito'; }
@@ -445,7 +503,7 @@ async function saveEditedSale(){
     paid: draft.type === 'avista' ? true : paidBefore >= draft.total - 0.004,
     paidAmount: draft.type === 'avista' ? draft.total : paidBefore,
     editedAt: now,
-    edits: (s.edits || []).concat([{ at: now, by: sellerInfo().name, totalAntes: s.total, itensAntes: itemsSummary(s), formaAntes: methodLabel(s) }])
+    edits: (s.edits || []).concat([{ at: now, by: sellerInfo().name, totalAntes: s.total, itensAntes: itemsSummary(s), formaAntes: methodLabel(s), consumoAntes: CONSUMO_LABELS[saleConsumo(s)] }])
   });
   if (draft.type === 'fiado' && patch.paid && !s.paid) patch.paidDate = now;
 
@@ -490,6 +548,7 @@ function resetSaleForm(){
   $('#cashReceived').value = '';
   $('#customerSelect').value = '';
   ui.saleType = 'avista'; ui.pm = 'dinheiro'; ui.cardType = 'debito';
+  lastLineMode = {};
   ui.vendaSearch = ''; $('#vendaSearch').value = '';
   applySaleTypeUI();
   renderVenda();
@@ -542,13 +601,14 @@ $('#cartList').addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b) return;
   const id = b.dataset.id;
-  if (b.dataset.act === 'inc') { addToCart(id); return; }
+  if (b.dataset.act === 'inc') { addToCart(lineProduct(id), lineMode(id)); return; }
+  if (b.dataset.act === 'mode') { setLineMode(id, b.dataset.mode); renderVenda(); return; }
   if (b.dataset.act === 'disc') { openItemDiscount(id); return; }
   if (b.dataset.act === 'dec') cart[id] = Math.max(0, (cart[id] || 0) - 1);
   if (b.dataset.act === 'rm') { delete cart[id]; delete cartDiscounts[id]; }
   renderVenda();
 });
-$('#btnClearCart').addEventListener('click', () => { cart = {}; cartDiscounts = {}; renderVenda(); });
+$('#btnClearCart').addEventListener('click', () => { cart = {}; cartDiscounts = {}; lastLineMode = {}; renderVenda(); });
 $('#btnCancelEdit').addEventListener('click', async () => {
   const ok = await confirmDialog({ title: 'Cancelar edição?', message: 'As alterações feitas nesta venda serão descartadas. A venda continua como estava.', okLabel: 'Descartar alterações' });
   if (!ok) return;
@@ -560,6 +620,7 @@ $('#btnCancelEdit').addEventListener('click', async () => {
 $('#cartDiscount').addEventListener('input', () => { renderCartTotals(); updateMobileCartBar(); });
 $('#cashReceived').addEventListener('input', renderCartTotals);
 $('#saleTypeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.saleType = b.dataset.type; applySaleTypeUI(); });
+
 $('#paymentSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.pm = b.dataset.pm; applySaleTypeUI(); });
 $('#cardTypeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; ui.cardType = b.dataset.ct; applySaleTypeUI(); });
 $('#customerSelect').addEventListener('change', updateCustomerHint);

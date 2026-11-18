@@ -96,6 +96,7 @@ function openReceiveModal(customerId){
     try {
       await withSave(async () => {
         let remaining = amount;
+        const allocations = [];   // quanto deste recebimento foi para cada venda (usado no faturamento e no lucro)
         const open = openFiadoSales(customerId).sort((a, b) => new Date(a.date) - new Date(b.date));
         for (const s of open) {
           if (remaining <= 0.004) break;
@@ -105,10 +106,11 @@ function openReceiveModal(customerId){
           const patch = { paidAmount: newPaid };
           if (newPaid >= s.total - 0.004) { patch.paid = true; patch.paidDate = new Date().toISOString(); }
           await db.collection('sales').doc(s.id).update(patch);
+          allocations.push({ saleId: s.id, amount: round2(pay) });
         }
         await db.collection('payments').add({
           date: new Date().toISOString(), customerId, customerName: c ? c.name : '',
-          amount, method, label: METHOD_LABELS[method], receivedBy: sellerInfo().name
+          amount, method, label: METHOD_LABELS[method], receivedBy: sellerInfo().name, allocations
         });
       });
       closeModal();
