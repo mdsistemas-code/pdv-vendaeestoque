@@ -256,12 +256,25 @@ function aggregateProducts(entries){
     const key = it.productId || it.name;
     const p = getProduct(it.productId);
     let e = map.get(key);
-    if (!e) { e = { name: p ? p.name : it.name, category: it.category || (p && p.category) || 'Outros', qty: 0, revenue: 0, profit: 0 }; map.set(key, e); }
-    e.qty += it.qty * en.frac;
-    e.revenue += itemNet(it) * en.frac;
-    e.profit += ((it.price - itemCost(it)) * it.qty - (it.discount || 0)) * en.frac;
+    if (!e) { e = { name: p ? p.name : it.name, category: it.category || (p && p.category) || 'Outros', qty: 0, revenue: 0, profit: 0, forms: {} }; map.set(key, e); }
+    const units = itemUnits(it) * en.frac;
+    const revenue = itemNet(it) * en.frac;
+    const profit = ((it.price - itemCost(it)) * it.qty - (it.discount || 0)) * en.frac;
+    e.qty += units;   // total em unidades (1 grade de 23 = 23)
+    e.revenue += revenue;
+    e.profit += profit;
+    // Quanto foi vendido em cada forma: unidade, grade, meia grade...
+    const size = it.formName && it.formQty > 1 ? it.formQty : 1;
+    const fk = size > 1 ? it.formName + '|' + size : '';
+    const f = e.forms[fk] || (e.forms[fk] = { name: size > 1 ? it.formName : null, size, qty: 0, revenue: 0 });
+    f.qty += it.qty * en.frac;
+    f.revenue += revenue;
   }));
-  return [...map.values()].map(e => Object.assign(e, { qty: Math.round(e.qty * 100) / 100, revenue: round2(e.revenue), profit: round2(e.profit) })).sort((a, b) => b.revenue - a.revenue);
+  return [...map.values()].map(e => Object.assign(e, {
+    qty: Math.round(e.qty * 100) / 100, revenue: round2(e.revenue), profit: round2(e.profit),
+    // formas em ordem: maior embalagem primeiro, unidade por último
+    forms: Object.values(e.forms).map(f => Object.assign(f, { qty: Math.round(f.qty * 100) / 100, revenue: round2(f.revenue) })).sort((a, b) => b.size - a.size)
+  })).sort((a, b) => b.revenue - a.revenue);
 }
 
 function capitalize(t){ return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; }

@@ -14,7 +14,7 @@ function saleReceiptText(s){
   if (s.customerId) L.push('Cliente: ' + customerName(s.customerId));
   L.push('');
   const misto = saleConsumo(s) === 'misto';
-  (s.items || []).forEach(it => L.push(it.qty + 'x ' + it.name + (misto && itemConsumo(it, s) === 'local' ? ' (no local)' : '') + ' — ' + fmt(itemNet(it)) +
+  (s.items || []).forEach(it => L.push(it.qty + 'x ' + itemLabel(it) + (misto && itemConsumo(it, s) === 'local' ? ' (no local)' : '') + ' — ' + fmt(itemNet(it)) +
     (it.discount ? ' (desconto de ' + fmt(it.discount) + (itemDiscountNote(it) ? ': ' + itemDiscountNote(it) : '') + ')' : '')));
   L.push('');
   if (s.discount) {

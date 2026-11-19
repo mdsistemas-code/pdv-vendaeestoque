@@ -64,10 +64,10 @@ function exportCaixa(){
 }
 function exportRelatorio(){
   const d = reportData();
-  const rows = [['Produto', 'Categoria', 'Quantidade', 'Faturamento', 'Lucro']];
-  d.prods.forEach(p => rows.push([p.name, p.category, fmtQty(p.qty), csvNum(p.revenue), csvNum(p.profit)]));
+  const rows = [['Produto', 'Categoria', 'Vendido como', 'Total (unidades)', 'Faturamento', 'Lucro']];
+  d.prods.forEach(p => rows.push([p.name, p.category, formsSoldText(p.forms), fmtQty(p.qty), csvNum(p.revenue), csvNum(p.profit)]));
   rows.push([]);
-  rows.push(['Faturamento total (com descontos)', '', '', csvNum(d.fat), csvNum(d.lucro)]);
+  rows.push(['Faturamento total (com descontos)', '', '', '', csvNum(d.fat), csvNum(d.lucro)]);
   rows.push(['Vendas fiado entram no faturamento e no lucro só quando são recebidas, na data do recebimento.']);
   const label = (PERIODS.find(p => p[0] === ui.reportPeriod) || ['', 'periodo'])[1].toLowerCase().replace(/\s+/g, '-');
   saveCSV('relatorio-' + label + '-' + dayKey(new Date()) + '.csv', rows);

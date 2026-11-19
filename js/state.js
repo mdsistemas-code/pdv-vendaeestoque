@@ -11,11 +11,11 @@ let db = null;              // banco de dados (ver storage.js)
 let storageMode = 'local';  // 'local' ou 'firebase' (definido em config.js)
 let offline = false;        // true se o banco não abriu
 let unsubscribers = [];
-let cart = {};              // { idProduto: quantidade }
-let cartDiscounts = {};     // desconto por item: { idProduto: { type: 'pct' | 'valor', value: n } }
+let cart = {};              // { "idProduto|consumo|idForma": quantidade } (ver lineKey em venda.js)
+let cartDiscounts = {};     // desconto por linha da comanda: { chaveDaLinha: { type: 'pct' | 'valor', value: n } }
 let editingSaleId = null;   // venda sendo editada (null = venda nova)
-let cartPrices = {};        // na edição: preço e custo originais de cada item { idProduto: { price, cost } }
-let editOriginalQty = {};   // na edição: quantidades originais (voltam ao estoque disponível)
+let cartPrices = {};        // na edição: preço e custo originais de cada linha { chaveDaLinha: { price, cost, unitCost } }
+let editOriginalQty = {};   // na edição: unidades originais de cada produto (voltam ao estoque disponível)
 let currentScreen = 'inicio';
 const charts = {};
 let pendingWrites = 0;

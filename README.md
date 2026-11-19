@@ -159,6 +159,32 @@ A foto é reduzida automaticamente (até 400 px) e comprimida antes de salvar, e
 
 ---
 
+## Formas de venda (unidade, grade, meia grade, fardo...)
+
+No cadastro do produto, os valores de cima são os da **unidade**. Em **Formas de venda**, você acrescenta as outras formas em que vende o produto: **Grade**, **Meia grade**, **Fardo**, **Caixa** ou **Outra**, com o nome que quiser. Cada forma tem:
+- **Unidades:** quantas unidades ela tem. Ex.: grade com 23.
+- **Retirada (R$):** o preço da forma inteira.
+- **No local (R$):** opcional. Em branco, usa o mesmo preço da retirada.
+
+Abaixo de cada forma aparece quanto daria vendendo na unidade e o lucro da forma.
+
+**O estoque é sempre contado em unidades.** Vender 1 grade de 23 baixa 23 unidades. Cancelar ou editar a venda devolve as unidades certas. Na lista de produtos, o estoque aparece também na maior forma: "Estoque 81 un. = 3× Grade + 12 un.". No cadastro, embaixo do campo de estoque, aparece quanto aquele número dá em grades.
+
+**Entrada de estoque em grade, caixa ou qualquer embalagem.** Clique em **Entrada** no produto e escolha como a mercadoria chegou:
+- **Unidades**;
+- uma das formas de venda do produto, como **Grade (23 un.)**;
+- **Outra embalagem…**, em que você diz quantas unidades tem cada uma. Serve para produtos sem formas cadastradas, ou para uma caixa que você não vende fechada.
+
+A janela mostra a conta antes de confirmar: "Vão entrar 2 × 23 = 46 un. O estoque vai ficar com 58 un. (2× Grade + 12 un.)". O valor de custo também pode ser o da embalagem, como o custo de cada grade. O sistema divide pelas unidades e guarda o custo de cada unidade.
+
+Na **Nova venda**, o cartão de um produto com formas de venda mostra um botão para cada forma com o preço, como **Unidade R$ 9,00**, **Meia grade 12 R$ 100,00** e **Grade 23 R$ 190,00**. Clicar no cartão fora dos botões adiciona 1 unidade. Cada forma vira uma linha própria no carrinho, por exemplo "Grade 23 un. · R$ 190,00 cada", com a sua quantidade, desconto e a escolha retirada / no local. Um botão fica apagado quando não há unidades suficientes para aquela forma. A bolinha no cartão mostra quantas unidades do produto já estão no carrinho.
+
+Na venda gravada, no comprovante e nos detalhes, o item aparece como "Brahma 600ml (Grade 23 un.)".
+
+**No Relatório**, a tabela de produtos tem a coluna **Vendido como**, que mostra quanto saiu em cada forma, como "3× Grade (23 un.)", "1× Meia grade (12 un.)" e "15 un.". Quando o produto saiu em mais de uma forma, aparece também o faturamento de cada uma. A coluna **Total (un.)** soma tudo em unidades, e a exportação CSV traz as duas informações.
+
+---
+
 ## Retirada e consumo no local
 
 O produto pode ter dois preços: **Venda: retirada** (obrigatório) e **Venda: no local** (opcional). Se o valor no local ficar em branco, o produto custa o mesmo nas duas situações. A lista de produtos mostra o preço no local abaixo do de retirada.

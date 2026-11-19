@@ -24,8 +24,27 @@ function renderVenda(){
     const list = vendaFilteredProducts();
     grid.innerHTML = list.length ? list.map(p => {
       const out = availableStock(p.id) <= 0;
-      const inCart = productQtyInCart(p.id);
-      const k = lineKey(p.id, productLineMode(p.id));   // preço do jeito que o produto vai entrar na comanda
+      const inCart = productQtyInCart(p.id);   // em unidades
+      const k = lineKey(p.id, productLineMode(p.id, ''), '');   // preço do jeito que o produto vai entrar na comanda
+      const forms = productForms(p);
+      if (forms.length) {
+        // Produto com formas de venda: um botão para cada (clicar fora dos botões adiciona 1 unidade)
+        const free = availableStock(p.id) - inCart;
+        const btn = (f) => {
+          const fk = lineKey(p.id, productLineMode(p.id, f ? f.id : ''), f ? f.id : '');
+          const price = cartDiscounts[fk] ? unitNet(fk) : linePrice(fk);
+          return `<button class="pp-form" data-add="${p.id}" data-form="${f ? esc(f.id) : ''}" ${free < (f ? f.qty : 1) ? 'disabled' : ''}><span class="ppf-name">${f ? esc(f.name) + ' <small>' + f.qty + ' un.</small>' : 'Unidade'}</span> <b>${fmt(price)}</b></button>`;
+        };
+        return `<div class="product-pick has-forms ${out ? 'is-out' : ''}" data-add="${p.id}" data-form="">
+          ${inCart ? '<span class="in-cart" title="Unidades na comanda">' + inCart + '</span>' : ''}
+          ${productThumbHTML(p, 52, 'pp-thumb')}
+          <span class="pp-body">
+            <span class="pp-name">${esc(p.name)}</span>
+            <span class="stock-pill ${out || isLow(p) ? 'low' : ''}">${out ? 'Sem estoque' : (p.stock || 0) + ' un. em estoque'}</span>
+          </span>
+          <div class="pp-forms">${btn(null)}${forms.map(btn).join('')}</div>
+        </div>`;
+      }
       return `<button class="product-pick" data-add="${p.id}" ${out ? 'disabled' : ''}>
           ${inCart ? '<span class="in-cart">' + inCart + '</span>' : ''}
           ${productThumbHTML(p, 52, 'pp-thumb')}
@@ -41,69 +60,90 @@ function renderVenda(){
 }
 
 /* ---------- Linhas da comanda ----------
-   Cada linha é um produto + forma de consumo: "idDoProduto|retirada" ou "idDoProduto|local".
-   Assim o mesmo produto pode estar na comanda das duas formas (ex.: 2 para beber aqui e 12 para levar). */
-function lineKey(pid, mode){ return pid + '|' + (mode === 'local' ? 'local' : 'retirada'); }
+   Cada linha é produto + forma de consumo + forma de venda: "idDoProduto|retirada|" (unidade)
+   ou "idDoProduto|local|idDaForma" (ex.: grade). O estoque é conferido sempre em unidades. */
+function lineKey(pid, mode, formId){ return pid + '|' + (mode === 'local' ? 'local' : 'retirada') + '|' + (formId || ''); }
 function lineProduct(key){ return String(key).split('|')[0]; }
 function lineMode(key){ return String(key).split('|')[1] === 'local' ? 'local' : 'retirada'; }
-function productQtyInCart(pid){ return Object.keys(cart).reduce((a, k) => a + (lineProduct(k) === pid ? (cart[k] || 0) : 0), 0); }
+function lineFormId(key){ return String(key).split('|')[2] || ''; }
+let cartFormInfo = {};   // na edição: forma de venda gravada no item, caso ela tenha saído do cadastro
+// Forma de venda da linha (null = unidade)
+function lineForm(key){
+  const fid = lineFormId(key);
+  if (!fid) return null;
+  return findForm(getProduct(lineProduct(key)), fid) || cartFormInfo[key] || null;
+}
+function lineUnits(key){ const f = lineForm(key); return f ? f.qty : 1; }   // unidades de estoque por item da linha
+function productQtyInCart(pid){ return Object.keys(cart).reduce((a, k) => a + (lineProduct(k) === pid ? (cart[k] || 0) * lineUnits(k) : 0), 0); }
 function removeProductFromCart(pid){ Object.keys(cart).forEach(k => { if (lineProduct(k) === pid) { delete cart[k]; delete cartDiscounts[k]; } }); }
-// Clicar num produto soma na linha que ele já tem na comanda, na forma que ela já está
+// Clicar num produto soma na linha que ele já tem na comanda (mesma forma de venda), na forma de consumo que ela já está
 // (assim uma mesa bebendo no local não ganha uma linha de retirada a cada clique). Produto novo entra como retirada.
-let lastLineMode = {};   // idDoProduto → última forma usada na comanda (vale quando o produto está nas duas)
-function productLineMode(pid){
-  const modes = Object.keys(cart).filter(k => lineProduct(k) === pid && cart[k] > 0).map(lineMode);
+let lastLineMode = {};   // "idDoProduto|idDaForma" → última forma de consumo usada (vale quando está nas duas)
+function productLineMode(pid, formId){
+  const fid = formId || '';
+  const modes = Object.keys(cart).filter(k => lineProduct(k) === pid && lineFormId(k) === fid && cart[k] > 0).map(lineMode);
   if (modes.length === 1) return modes[0];
-  if (modes.length > 1) return lastLineMode[pid] === 'local' ? 'local' : 'retirada';
+  if (modes.length > 1) return lastLineMode[pid + '|' + fid] === 'local' ? 'local' : 'retirada';
   return 'retirada';
 }
 
-// Adiciona uma unidade. mode = forma de consumo da linha (sem mode: ver productLineMode)
-function addToCart(pid, mode){
+// Adiciona 1 item. formId = forma de venda (vazio = unidade); mode = forma de consumo (sem mode: ver productLineMode)
+function addToCart(pid, mode, formId){
   const p = getProduct(pid);
   if (!p) return false;
+  const form = findForm(p, formId);
+  const fid = form ? form.id : '';
+  const units = form ? form.qty : 1;
   const stock = availableStock(pid);
-  if (productQtyInCart(pid) + 1 > stock) {
-    toast(stock <= 0 ? p.name + ' está sem estoque.' : 'Estoque insuficiente: só há ' + stock + ' un. de ' + p.name + '.', 'error');
+  const free = stock - productQtyInCart(pid);
+  if (units > free) {
+    toast(stock <= 0 ? p.name + ' está sem estoque.'
+      : 'Estoque insuficiente' + (form ? ' para ' + form.name.toLowerCase() + ' (' + form.qty + ' un.)' : '') + ': ' + (free > 0 ? 'só há ' + free + ' un. disponíveis' : 'não há mais unidades disponíveis') + ' de ' + p.name + '.', 'error');
     return false;
   }
-  const m = mode || productLineMode(pid);
-  const k = lineKey(pid, m);
+  const m = mode || productLineMode(pid, fid);
+  const k = lineKey(pid, m, fid);
   cart[k] = (cart[k] || 0) + 1;
-  lastLineMode[pid] = m;
+  lastLineMode[pid + '|' + fid] = m;
   renderVenda();
   return true;
 }
 
-// Troca a forma de consumo de uma linha. Se já existir a linha do mesmo produto na outra forma, junta as duas.
+// Troca a forma de consumo de uma linha. Se já existir a linha igual na outra forma, junta as duas.
 function setLineMode(key, mode){
-  const to = lineKey(lineProduct(key), mode);
+  const to = lineKey(lineProduct(key), mode, lineFormId(key));
   if (to === key || !cart[key]) return;
-  lastLineMode[lineProduct(key)] = lineMode(to);
-  cart[to] = (cart[to] || 0) + cart[key];
+  lastLineMode[lineProduct(key) + '|' + lineFormId(key)] = lineMode(to);
   if (cartDiscounts[key] && !cartDiscounts[to]) cartDiscounts[to] = cartDiscounts[key];
-  delete cart[key]; delete cartDiscounts[key];
+  if (cartFormInfo[key] && !cartFormInfo[to]) cartFormInfo[to] = cartFormInfo[key];
+  delete cartDiscounts[key];
+  if (cart[to]) { cart[to] += cart[key]; delete cart[key]; return; }
+  // Troca a chave mantendo a linha no mesmo lugar do carrinho
+  const next = {};
+  Object.keys(cart).forEach(k => { next[k === key ? to : k] = cart[k]; });
+  cart = next;
 }
 
 function cartSubtotal(){
   return round2(Object.keys(cart).reduce((a, k) => a + (getProduct(lineProduct(k)) ? linePrice(k) * cart[k] : 0), 0));
 }
-// Preço de cada unidade da linha, conforme a forma de consumo dela. Na edição de uma venda, os itens que
-// já estavam nela mantêm o preço da época enquanto continuarem na mesma forma de consumo.
+// Preço de cada item da linha (1 unidade, ou 1 grade...), conforme a forma de consumo. Na edição de uma venda,
+// os itens que já estavam nela mantêm o preço da época enquanto continuarem na mesma forma de consumo.
 function linePrice(key){
   if (cartPrices[key]) return cartPrices[key].price;
   const p = getProduct(lineProduct(key));
-  return p ? productPrice(p, lineMode(key)) : 0;
+  return p ? formPrice(p, lineForm(key), lineMode(key)) : 0;
 }
+// Custo de cada item da linha = custo da unidade × unidades da forma
 function lineCost(key){
   if (cartPrices[key]) return cartPrices[key].cost;
   const pid = lineProduct(key);
   const old = Object.keys(cartPrices).find(k => lineProduct(k) === pid);   // na edição: custo da época
-  if (old) return cartPrices[old].cost;
   const p = getProduct(pid);
-  return p ? (p.costPrice || 0) : 0;
+  const unitCost = old ? cartPrices[old].unitCost : (p ? (p.costPrice || 0) : 0);
+  return round2(unitCost * lineUnits(key));
 }
-// Estoque disponível para esta venda: na edição, as unidades que já eram dela contam como disponíveis
+// Estoque disponível para esta venda (unidades): na edição, as que já eram dela contam como disponíveis
 function availableStock(pid){ const p = getProduct(pid); return (p ? (p.stock || 0) : 0) + (editingSaleId ? (editOriginalQty[pid] || 0) : 0); }
 function lineGross(key){ return round2(linePrice(key) * (cart[key] || 0)); }
 /* ---------- Desconto por item ---------- */
@@ -135,7 +175,7 @@ function openItemDiscount(key){
   let type = cur ? cur.type : 'pct';
   const sheet = openModal(`
     <h3>Desconto no item</h3>
-    <div class="sub"><b>${esc(p.name)}</b> (${lineMode(key) === 'local' ? 'consumo no local' : 'retirada'}) — ${fmt(price)} cada, ${qty} no carrinho. O desconto vale para todas as unidades.</div>
+    <div class="sub"><b>${esc(p.name)}</b>${lineForm(key) ? ' — ' + esc(lineForm(key).name) + ' ' + lineForm(key).qty + ' un.' : ''} (${lineMode(key) === 'local' ? 'consumo no local' : 'retirada'}) — ${fmt(price)} cada, ${qty} no carrinho. O desconto vale para todas as unidades.</div>
     <label class="field-label">Tipo de desconto</label>
     <div class="segmented" id="idType">
       <button data-t="pct">Porcentagem (%)</button>
@@ -217,7 +257,7 @@ function renderEditState(){
 
 function renderCart(){
   renderEditState();
-  Object.keys(cart).forEach(k => { if (!getProduct(lineProduct(k)) || cart[k] <= 0) delete cart[k]; });
+  Object.keys(cart).forEach(k => { if (!getProduct(lineProduct(k)) || cart[k] <= 0 || (lineFormId(k) && !lineForm(k))) delete cart[k]; });
   Object.keys(cartDiscounts).forEach(k => { if (!cart[k]) delete cartDiscounts[k]; });
   const keys = Object.keys(cart);
   const has = keys.length > 0;
@@ -233,7 +273,10 @@ function renderCart(){
     const discBtn = d
       ? `<button class="disc-tag" data-act="disc" data-id="${k}" title="Alterar desconto">${cartDiscountTag(k)}</button>`
       : `<button class="link-btn ci-disc" data-act="disc" data-id="${k}">＋ desconto</button>`;
-    const unitTxt = d ? '<s>' + fmt(linePrice(k)) + '</s> ' + fmt(unitNet(k)) + ' un.' : fmt(linePrice(k)) + ' un.';
+    const form = lineForm(k);
+    const each = form ? ' cada' : ' un.';
+    const unitTxt = (form ? '<span class="ci-form">' + esc(form.name) + ' ' + form.qty + ' un.</span> · ' : '') +
+      (d ? '<s>' + fmt(linePrice(k)) + '</s> ' + fmt(unitNet(k)) + each : fmt(linePrice(k)) + each);
     const modeBtns = `<div class="ci-mode" role="group" aria-label="Consumo de ${esc(p.name)}">
           <button data-act="mode" data-id="${k}" data-mode="retirada" class="${mode === 'retirada' ? 'active' : ''}">Retirada</button>
           <button data-act="mode" data-id="${k}" data-mode="local" class="${mode === 'local' ? 'active' : ''}">No local</button>
@@ -334,7 +377,7 @@ function buildSaleDraft(){
   for (const k of ids) {
     const pid = lineProduct(k);
     if (!getProduct(pid)) { delete cart[k]; renderVenda(); toast('Um produto do carrinho foi removido do cadastro. Confira o carrinho.', 'error'); return null; }
-    perProduct[pid] = (perProduct[pid] || 0) + cart[k];
+    perProduct[pid] = (perProduct[pid] || 0) + cart[k] * lineUnits(k);   // em unidades
   }
   for (const pid of Object.keys(perProduct)) {
     if (perProduct[pid] > availableStock(pid)) { toast('Estoque insuficiente de ' + getProduct(pid).name + ' (disponível: ' + availableStock(pid) + ').', 'error'); return null; }
@@ -369,8 +412,11 @@ function buildSaleDraft(){
     const pid = lineProduct(k);
     const p = getProduct(pid);
     const d = cartDiscounts[k];
+    const form = lineForm(k);
     return {
-      productId: pid, name: p.name, category: p.category || 'Outros', consumo: lineMode(k), qty: cart[k], price: linePrice(k), cost: lineCost(k),
+      productId: pid, name: p.name, category: p.category || 'Outros', consumo: lineMode(k),
+      formId: form ? form.id : null, formName: form ? form.name : null, formQty: form ? form.qty : 1,   // forma de venda (grade...)
+      qty: cart[k], price: linePrice(k), cost: lineCost(k),
       discount: lineDiscount(k),
       discountPct: d && d.type === 'pct' ? d.value : null,
       discountUnit: d && d.type === 'valor' ? d.value : null
@@ -409,7 +455,7 @@ async function finalizeSale(){
       const ref = await db.collection('sales').add(sale);
       saleId = ref.id;
       for (const it of draft.items) {
-        if (getProduct(it.productId)) await db.collection('products').doc(it.productId).update({ stock: db.increment(-it.qty) });
+        if (getProduct(it.productId)) await db.collection('products').doc(it.productId).update({ stock: db.increment(-itemUnits(it)) });
       }
     });
     const label = '#' + String(number).padStart(4, '0');
@@ -453,14 +499,17 @@ async function startEditSale(id){
   }
 
   editingSaleId = id;
-  cart = {}; cartDiscounts = {}; cartPrices = {}; editOriginalQty = {};
+  cart = {}; cartDiscounts = {}; cartPrices = {}; editOriginalQty = {}; cartFormInfo = {};
   (s.items || []).forEach(it => {
     const pid = it.productId;
-    const k = lineKey(pid, itemConsumo(it, s));
+    const fq = it.formQty > 1 ? it.formQty : 1;
+    const k = lineKey(pid, itemConsumo(it, s), it.formId || '');
     cart[k] = (cart[k] || 0) + it.qty;
-    editOriginalQty[pid] = (editOriginalQty[pid] || 0) + it.qty;
+    editOriginalQty[pid] = (editOriginalQty[pid] || 0) + itemUnits(it);
     const p = getProduct(pid);
-    cartPrices[k] = { price: it.price, cost: typeof it.cost === 'number' ? it.cost : (p.costPrice || 0) };
+    const cost = typeof it.cost === 'number' ? it.cost : (p.costPrice || 0) * fq;
+    cartPrices[k] = { price: it.price, cost, unitCost: cost / fq };
+    if (it.formId) cartFormInfo[k] = { id: it.formId, name: it.formName, qty: fq, price: it.price, priceLocal: null };
     if (it.discountPct) cartDiscounts[k] = { type: 'pct', value: it.discountPct };
     else if (it.discountUnit) cartDiscounts[k] = { type: 'valor', value: it.discountUnit };
     else if (it.discount) cartDiscounts[k] = { type: 'valor', value: round2(it.discount / it.qty) };
@@ -509,8 +558,8 @@ async function saveEditedSale(){
 
   // Estoque: devolve o que era da venda e retira o que ficou
   const deltas = {};
-  (s.items || []).forEach(it => { deltas[it.productId] = (deltas[it.productId] || 0) + it.qty; });
-  draft.items.forEach(it => { deltas[it.productId] = (deltas[it.productId] || 0) - it.qty; });
+  (s.items || []).forEach(it => { deltas[it.productId] = (deltas[it.productId] || 0) + itemUnits(it); });   // em unidades
+  draft.items.forEach(it => { deltas[it.productId] = (deltas[it.productId] || 0) - itemUnits(it); });
 
   const btn = $('#btnFinalizeSale');
   savingSale = true;
@@ -543,6 +592,7 @@ function resetSaleForm(){
   editingSaleId = null;
   cartPrices = {};
   editOriginalQty = {};
+  cartFormInfo = {};
   ui.selectCustomerId = null;
   $('#cartDiscount').value = '';
   $('#cashReceived').value = '';
@@ -594,14 +644,15 @@ $('#vendaSearch').addEventListener('keydown', e => {
   } else if (e.key === 'Escape') { ui.vendaSearch = ''; e.target.value = ''; renderVenda(); }
 });
 $('#pickProducts').addEventListener('click', e => {
+  if (e.target.closest('button:disabled, .is-out')) return;
   const b = e.target.closest('[data-add]');
-  if (b && !b.disabled) addToCart(b.dataset.add);
+  if (b && !b.disabled) addToCart(b.dataset.add, null, b.dataset.form || '');
 });
 $('#cartList').addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b) return;
   const id = b.dataset.id;
-  if (b.dataset.act === 'inc') { addToCart(lineProduct(id), lineMode(id)); return; }
+  if (b.dataset.act === 'inc') { addToCart(lineProduct(id), lineMode(id), lineFormId(id)); return; }
   if (b.dataset.act === 'mode') { setLineMode(id, b.dataset.mode); renderVenda(); return; }
   if (b.dataset.act === 'disc') { openItemDiscount(id); return; }
   if (b.dataset.act === 'dec') cart[id] = Math.max(0, (cart[id] || 0) - 1);

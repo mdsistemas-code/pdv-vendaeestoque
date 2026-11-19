@@ -140,14 +140,83 @@ function openImageViewer(id){
   $('#ivEdit').addEventListener('click', () => { closeModal(); editProduct(id); });
 }
 
+/* ---------- Formas de venda no cadastro (grade, meia grade, fardo...) ---------- */
+function formRowHTML(f){
+  f = f || {};
+  return `<div class="form-row" data-fid="${esc(f.id || '')}">
+      <button type="button" class="icon-btn fr-rm" data-rmform aria-label="Remover esta forma de venda">✕</button>
+      <div class="fr-grid">
+        <div><label>Nome</label><input type="text" class="f-name" value="${esc(f.name || '')}" placeholder="Ex: Grade" autocomplete="off"></div>
+        <div><label>Unidades</label><input type="text" inputmode="numeric" class="f-qty" value="${f.qty ? f.qty : ''}" placeholder="Ex: 23" autocomplete="off"></div>
+      </div>
+      <div class="fr-grid">
+        <div><label>Retirada (R$)</label><input type="text" inputmode="decimal" class="f-price" value="${f.price ? fmtInput(f.price) : ''}" placeholder="0,00" autocomplete="off"></div>
+        <div><label>No local (R$)</label><input type="text" inputmode="decimal" class="f-local" value="${f.priceLocal ? fmtInput(f.priceLocal) : ''}" placeholder="Igual à retirada" autocomplete="off"></div>
+      </div>
+      <div class="fr-hint"></div>
+    </div>`;
+}
+function setProductForms(forms){ $('#prodForms').innerHTML = (forms || []).map(formRowHTML).join(''); updateFormHints(); }
+function addFormRow(name){
+  $('#prodForms').insertAdjacentHTML('beforeend', formRowHTML({ name }));
+  const row = $('#prodForms').lastElementChild;
+  updateFormHints();
+  focusLater(() => $(name ? '.f-qty' : '.f-name', row), 50);
+}
+// Dica de cada forma: quanto daria vendendo na unidade e o lucro da forma.
+// E, embaixo do estoque, quanto ele dá na maior forma (92 un. = 4× Grade).
+function updateFormHints(){
+  const typedForms = $$('#prodForms .form-row').map(row => ({ id: 'x', name: $('.f-name', row).value.trim(), qty: parseQty($('.f-qty', row).value), price: 1 }))
+    .filter(f => f.name && f.qty > 1);
+  const st = parseQty($('#prodStock').value);
+  const bd = isNaN(st) ? '' : stockBreakdown({ forms: typedForms }, st);
+  $('#prodStockHint').textContent = bd ? '= ' + bd : '';
+  const unitPrice = parseMoney($('#prodPrice').value);
+  const costStr = $('#prodCost').value.trim();
+  const cost = costStr ? parseMoney(costStr) : 0;
+  $$('#prodForms .form-row').forEach(row => {
+    const qtyStr = $('.f-qty', row).value.trim();
+    const qty = parseQty(qtyStr);
+    const price = parseMoney($('.f-price', row).value);
+    const el = $('.fr-hint', row);
+    if (isNaN(qty) || qty < 2) { el.textContent = qtyStr ? 'Unidades: número inteiro, a partir de 2.' : ''; return; }
+    const parts = [qty + ' un. no estoque'];
+    if (!isNaN(unitPrice) && unitPrice > 0) parts.push('na unidade daria ' + fmt(unitPrice * qty));
+    if (!isNaN(price) && price > 0 && !isNaN(cost) && cost > 0) {
+      const m = round2(price - cost * qty);
+      parts.push('lucro <span class="' + (m >= 0 ? 'pos' : 'neg') + '">' + fmt(m) + '</span>');
+    }
+    el.innerHTML = parts.join(' · ');
+  });
+}
+// Lê as formas preenchidas. Linhas totalmente vazias são ignoradas.
+function readProductForms(){
+  const forms = [];
+  for (const row of $$('#prodForms .form-row')) {
+    const get = c => $(c, row).value.trim();
+    const name = get('.f-name'), qtyStr = get('.f-qty'), priceStr = get('.f-price'), localStr = get('.f-local');
+    if (!name && !qtyStr && !priceStr && !localStr) continue;
+    if (!name) return { error: 'Dê um nome para a forma de venda (ex.: Grade).', el: $('.f-name', row) };
+    const qty = parseQty(qtyStr);
+    if (isNaN(qty) || qty < 2) return { error: 'Em “' + name + '”, informe quantas unidades tem (número inteiro, a partir de 2).', el: $('.f-qty', row) };
+    const price = parseMoney(priceStr);
+    if (isNaN(price) || price <= 0) return { error: 'Em “' + name + '”, informe o valor para retirada.', el: $('.f-price', row) };
+    const priceLocal = localStr ? parseMoney(localStr) : null;
+    if (priceLocal !== null && (isNaN(priceLocal) || priceLocal <= 0)) return { error: 'Em “' + name + '”, o valor no local é inválido. Deixe em branco para usar o da retirada.', el: $('.f-local', row) };
+    forms.push({ id: row.dataset.fid || makeId(), name, qty, price, priceLocal });
+  }
+  return { forms };
+}
+
 function resetProductForm(){
   ui.editingProductId = null;
   setText('prodFormTitle', 'Novo produto');
   setText('btnSaveProduct', 'Adicionar produto');
-  setText('prodStockLabel', 'Estoque inicial');
+  setText('prodStockLabel', 'Estoque inicial (un.)');
   $('#btnCancelProductEdit').style.display = 'none';
   $('#productFormPanel').classList.remove('editing');
   ['prodName', 'prodCategory', 'prodCost', 'prodPrice', 'prodPriceLocal', 'prodStock', 'prodMinStock'].forEach(id => { $('#' + id).value = ''; });
+  setProductForms([]);
   ui.prodImage = null;
   renderImagePicker();
   setText('prodImageHint', 'JPG ou PNG. No computador, dá para arrastar a foto até aqui.');
@@ -161,7 +230,7 @@ function editProduct(id){
   ui.editingProductId = id;
   setText('prodFormTitle', 'Editar produto');
   setText('btnSaveProduct', 'Salvar alterações');
-  setText('prodStockLabel', 'Estoque atual');
+  setText('prodStockLabel', 'Estoque atual (un.)');
   $('#btnCancelProductEdit').style.display = '';
   $('#productFormPanel').classList.add('editing');
   $('#prodName').value = p.name || '';
@@ -171,6 +240,7 @@ function editProduct(id){
   $('#prodPriceLocal').value = hasLocalPrice(p) ? fmtInput(p.priceLocal) : '';
   $('#prodStock').value = String(p.stock || 0);
   $('#prodMinStock').value = p.minStock ? String(p.minStock) : '';
+  setProductForms(productForms(p));
   ui.prodImage = safeImage(p.image);
   renderImagePicker();
   setText('prodImageHint', 'JPG ou PNG. No computador, dá para arrastar a foto até aqui.');
@@ -204,8 +274,10 @@ async function saveProduct(){
   if (state.products.some(p => p.id !== ui.editingProductId && p.name.trim().toLowerCase() === name.toLowerCase())) {
     toast('Já existe um produto com esse nome.', 'error'); $('#prodName').focus(); return;
   }
+  const fr = readProductForms();
+  if (fr.error) { toast(fr.error, 'error'); fr.el.focus(); return; }
 
-  const data = { name, category, costPrice: cost, price, priceLocal, stock, minStock, image: safeImage(ui.prodImage) };
+  const data = { name, category, costPrice: cost, price, priceLocal, forms: fr.forms, stock, minStock, image: safeImage(ui.prodImage) };
   const editing = ui.editingProductId;
   const btn = $('#btnSaveProduct');
   btn.disabled = true;
@@ -235,38 +307,109 @@ async function deleteProduct(id){
   } catch (e) { toast(errMsg(e, 'Não foi possível remover o produto.'), 'error'); }
 }
 
+/* ---------- Entrada de estoque ----------
+   A mercadoria pode chegar em unidades, numa forma de venda do produto (grade, fardo...) ou numa embalagem
+   avulsa ("Outra embalagem": você diz quantas unidades tem). Tudo vira unidades no estoque. */
 function openStockModal(id){
   const p = getProduct(id);
   if (!p) return;
+  const forms = productForms(p).slice().sort((a, b) => b.qty - a.qty);
+  const OTHER = '__outra';
+  const breakdown = stockBreakdown(p);
   const sheet = openModal(`
     <h3>Entrada de estoque</h3>
-    <div class="sub">${esc(p.name)} — estoque atual: <b>${p.stock || 0} un.</b></div>
+    <div class="sub">${esc(p.name)} — estoque atual: <b>${p.stock || 0} un.</b>${breakdown ? ' (' + esc(breakdown) + ')' : ''}</div>
     <label class="field-label" for="stQty">Quantidade que chegou</label>
-    <input type="text" inputmode="numeric" id="stQty" placeholder="Ex: 24" autocomplete="off">
-    <label class="field-label" for="stCost">Valor de custo por unidade (R$)</label>
+    <div class="row-2">
+      <input type="text" inputmode="numeric" id="stQty" placeholder="Ex: 2" autocomplete="off">
+      <select id="stForm" aria-label="Em que embalagem chegou">
+        <option value="">Unidades</option>
+        ${forms.map(f => '<option value="' + esc(f.id) + '">' + esc(f.name) + ' (' + f.qty + ' un.)</option>').join('')}
+        <option value="${OTHER}">Outra embalagem…</option>
+      </select>
+    </div>
+    <div id="stPackWrap" style="display:none">
+      <label class="field-label" for="stPackQty">Quantas unidades tem cada embalagem?</label>
+      <input type="text" inputmode="numeric" id="stPackQty" placeholder="Ex: 23" autocomplete="off">
+    </div>
+    <label class="field-label" for="stCost" id="stCostLabel">Valor de custo por unidade (R$)</label>
     <input type="text" inputmode="decimal" id="stCost" value="${p.costPrice ? fmtInput(p.costPrice) : ''}" placeholder="0,00" autocomplete="off">
     <div class="hint" id="stHint"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" data-close>Cancelar</button>
       <button class="btn btn-primary" data-primary id="stOk">Confirmar entrada</button>
     </div>`);
-  const upd = () => {
-    const q = parseQty($('#stQty', sheet).value);
-    $('#stHint', sheet).textContent = isNaN(q) || q <= 0 ? '' : 'O estoque vai ficar com ' + ((p.stock || 0) + q) + ' un.';
+  const sel = $('#stForm', sheet), costEl = $('#stCost', sheet);
+  // Embalagem escolhida: { name, size } (size = unidades em cada uma; 1 = unidade avulsa)
+  const pack = () => {
+    if (sel.value === OTHER) { const n = parseQty($('#stPackQty', sheet).value); return { name: 'embalagem', size: isNaN(n) ? NaN : n, other: true }; }
+    const f = findForm(p, sel.value);
+    return f ? { name: f.name, size: f.qty } : { name: null, size: 1 };
   };
+  // O custo digitado vale para a embalagem escolhida (ex.: custo da grade); guardamos o da unidade
+  let unitCost = p.costPrice || 0;
+  let lastSize = 1;
+  const readUnitCost = () => {
+    const c = parseMoney(costEl.value);
+    if (!isNaN(c) && lastSize > 0) unitCost = c / lastSize;
+  };
+  const showCost = () => {
+    const pk = pack();
+    const size = pk.size > 1 ? pk.size : 1;
+    $('#stCostLabel', sheet).textContent = size > 1
+      ? 'Valor de custo de cada ' + (pk.other ? 'embalagem' : pk.name.toLowerCase()) + ' (R$)'
+      : 'Valor de custo por unidade (R$)';
+    if (costEl.value.trim() && size !== lastSize) costEl.value = fmtInput(round2(unitCost * size));
+    lastSize = size;
+  };
+  const totals = () => {
+    const q = parseQty($('#stQty', sheet).value);
+    const pk = pack();
+    const total = isNaN(q) || isNaN(pk.size) ? NaN : q * pk.size;
+    return { q, pk, total };
+  };
+  const upd = () => {
+    const t = totals();
+    const el = $('#stHint', sheet);
+    if (isNaN(t.total) || t.total <= 0) {
+      el.textContent = sel.value === OTHER && $('#stQty', sheet).value.trim() && isNaN(t.pk.size) ? 'Informe quantas unidades tem cada embalagem.' : '';
+      return;
+    }
+    const after = (p.stock || 0) + t.total;
+    const bd = stockBreakdown(p, after);
+    const parts = [];
+    if (t.pk.size > 1) parts.push('Vão entrar ' + t.q + ' × ' + t.pk.size + ' = ' + t.total + ' un.');
+    parts.push('O estoque vai ficar com ' + after + ' un.' + (bd ? ' (' + bd + ').' : ''));
+    const c = parseMoney(costEl.value);
+    if (t.pk.size > 1 && !isNaN(c) && c > 0) parts.push('Custo por unidade: ' + fmt(c / t.pk.size) + '.');
+    el.textContent = parts.join(' ');
+  };
+  sel.addEventListener('change', () => {
+    readUnitCost();
+    $('#stPackWrap', sheet).style.display = sel.value === OTHER ? '' : 'none';
+    if (sel.value === OTHER) focusLater(() => $('#stPackQty', sheet), 30);
+    showCost(); upd();
+  });
+  $('#stPackQty', sheet).addEventListener('input', () => { readUnitCost(); showCost(); upd(); });
   $('#stQty', sheet).addEventListener('input', upd);
+  costEl.addEventListener('input', () => { readUnitCost(); upd(); });
   $('#stOk', sheet).addEventListener('click', async e => {
     if (!requireDb()) return;
-    const q = parseQty($('#stQty', sheet).value);
-    const costStr = $('#stCost', sheet).value.trim();
-    const cost = costStr ? parseMoney(costStr) : (p.costPrice || 0);
-    if (isNaN(q) || q <= 0) { toast('Digite a quantidade (número inteiro).', 'error'); return; }
-    if (isNaN(cost) || cost < 0) { toast('Valor de custo inválido.', 'error'); return; }
+    const t = totals();
+    const q = t.total;
+    if (sel.value === OTHER && (isNaN(t.pk.size) || t.pk.size < 2)) { toast('Informe quantas unidades tem cada embalagem (a partir de 2).', 'error'); $('#stPackQty', sheet).focus(); return; }
+    if (isNaN(q) || q <= 0) { toast('Digite a quantidade (número inteiro).', 'error'); $('#stQty', sheet).focus(); return; }
+    const costStr = costEl.value.trim();
+    const typed = costStr ? parseMoney(costStr) : NaN;
+    if (costStr && (isNaN(typed) || typed < 0)) { toast('Valor de custo inválido.', 'error'); costEl.focus(); return; }
+    // custo da unidade: o digitado dividido pelas unidades da embalagem (4 casas para não perder centavos na grade)
+    const cost = costStr ? Math.round(typed / (t.pk.size > 1 ? t.pk.size : 1) * 10000) / 10000 : (p.costPrice || 0);
     e.target.disabled = true;
     try {
       await withSave(() => db.collection('products').doc(id).update({ stock: db.increment(q), costPrice: cost }));
       closeModal();
-      toast('Entrada de ' + q + ' un. de ' + p.name + ' registrada.');
+      const what = t.pk.size > 1 ? t.q + '× ' + (t.pk.other ? 'embalagem de ' + t.pk.size : t.pk.name.toLowerCase()) + ' (' + q + ' un.)' : q + ' un.';
+      toast('Entrada de ' + what + ' de ' + p.name + ' registrada.');
     } catch (err) {
       e.target.disabled = false;
       toast(errMsg(err, 'Não foi possível registrar a entrada.'), 'error');
@@ -283,7 +426,8 @@ function productRowHTML(p){
       <div class="lr-thumb ${safeImage(p.image) ? 'zoomable' : ''}" ${safeImage(p.image) ? 'data-pimg="' + p.id + '" title="Ver imagem"' : ''}>${productThumbHTML(p, 48)}</div>
       <div class="lr-main lr-grow">
         <div class="name">${esc(p.name)} ${tag}</div>
-        <div class="meta">Estoque <b>${p.stock || 0}</b> un.${p.minStock ? ' (mín. ' + p.minStock + ')' : ''} — custo ${fmt(cost)} — lucro <span class="${margin >= 0 ? 'pos' : 'neg'}">${fmt(margin)}${cost > 0 ? ' (' + Math.round(margin / cost * 100) + '%)' : ''}</span></div>
+        <div class="meta">Estoque <b>${p.stock || 0}</b> un.${stockBreakdown(p) ? ' = ' + esc(stockBreakdown(p)) : ''}${p.minStock ? ' (mín. ' + p.minStock + ')' : ''} — custo ${fmt(cost)} — lucro <span class="${margin >= 0 ? 'pos' : 'neg'}">${fmt(margin)}${cost > 0 ? ' (' + Math.round(margin / cost * 100) + '%)' : ''}</span></div>
+        ${productForms(p).length ? '<div class="meta">Também vende: ' + productForms(p).map(f => esc(f.name) + ' (' + f.qty + ' un.) <b>' + fmt(f.price) + '</b>').join(' · ') + '</div>' : ''}
       </div>
       <div class="right">
         <span class="amount amber">${fmt(p.price)}</span>
@@ -335,6 +479,14 @@ $('#btnCancelProductEdit').addEventListener('click', resetProductForm);
 $('#prodCost').addEventListener('input', updateMarginHint);
 $('#prodPrice').addEventListener('input', updateMarginHint);
 $('#prodPriceLocal').addEventListener('input', updateMarginHint);
+['prodPrice', 'prodCost', 'prodStock'].forEach(id => $('#' + id).addEventListener('input', updateFormHints));
+$('#prodForms').addEventListener('input', updateFormHints);
+$('#prodForms').addEventListener('click', e => {
+  const rm = e.target.closest('[data-rmform]');
+  if (rm) { rm.closest('.form-row').remove(); updateFormHints(); }
+});
+$('#prodForms').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('input')) { e.preventDefault(); saveProduct(); } });
+$('.forms-add').addEventListener('click', e => { const b = e.target.closest('[data-addform]'); if (b) addFormRow(b.dataset.addform); });
 $('#prodSearch').addEventListener('input', e => { ui.prodSearch = e.target.value; renderProdutos(); });
 $$('#productFormPanel input').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveProduct(); } }));
 $('#btnPickImage').addEventListener('click', () => $('#prodImageFile').click());

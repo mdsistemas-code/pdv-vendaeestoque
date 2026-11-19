@@ -323,22 +323,37 @@
             <input type="text" inputmode="decimal" id="prodCost" placeholder="0,00" autocomplete="off">
             <div class="row-2">
               <div>
-                <label class="field-label" for="prodPrice">Venda: retirada (R$)</label>
+                <label class="field-label" for="prodPrice">Unidade: retirada (R$)</label>
                 <input type="text" inputmode="decimal" id="prodPrice" placeholder="0,00" autocomplete="off">
               </div>
               <div>
-                <label class="field-label" for="prodPriceLocal">Venda: no local (R$)</label>
+                <label class="field-label" for="prodPriceLocal">Unidade: no local (R$)</label>
                 <input type="text" inputmode="decimal" id="prodPriceLocal" placeholder="Igual à retirada" autocomplete="off">
               </div>
             </div>
             <div class="hint" id="marginHint"></div>
+
+            <div class="forms-box">
+              <div class="field-label">Formas de venda</div>
+              <div class="hint forms-intro">A unidade usa os valores acima. Acrescente as outras formas em que você vende este produto. O estoque continua contado em unidades.</div>
+              <div id="prodForms"></div>
+              <div class="forms-add">
+                <button type="button" class="chip" data-addform="Grade">＋ Grade</button>
+                <button type="button" class="chip" data-addform="Meia grade">＋ Meia grade</button>
+                <button type="button" class="chip" data-addform="Fardo">＋ Fardo</button>
+                <button type="button" class="chip" data-addform="Caixa">＋ Caixa</button>
+                <button type="button" class="chip" data-addform="">＋ Outra</button>
+              </div>
+            </div>
+
             <div class="row-2">
               <div>
                 <label class="field-label" for="prodStock" id="prodStockLabel">Estoque inicial</label>
                 <input type="text" inputmode="numeric" id="prodStock" placeholder="0" autocomplete="off">
+                <div class="hint" id="prodStockHint"></div>
               </div>
               <div>
-                <label class="field-label" for="prodMinStock">Estoque mínimo</label>
+                <label class="field-label" for="prodMinStock">Estoque mínimo (un.)</label>
                 <input type="text" inputmode="numeric" id="prodMinStock" placeholder="0" autocomplete="off">
               </div>
             </div>
@@ -428,7 +443,7 @@
         </div>
         <div class="table-wrap" id="reportTableWrap">
           <table class="data">
-            <thead><tr><th>Produto</th><th>Categoria</th><th class="num">Qtd.</th><th class="num">Faturamento</th><th class="num">Lucro</th><th class="num">Lucro %</th></tr></thead>
+            <thead><tr><th>Produto</th><th>Categoria</th><th>Vendido como</th><th class="num">Total (un.)</th><th class="num">Faturamento</th><th class="num">Lucro</th><th class="num">Lucro %</th></tr></thead>
             <tbody id="reportBody"></tbody>
             <tfoot id="reportFoot"></tfoot>
           </table>

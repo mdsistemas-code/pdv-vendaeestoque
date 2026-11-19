@@ -14,7 +14,7 @@ function openSaleDetails(id){
   const hasItemDisc = itemsDisc > 0;
   const misto = saleConsumo(s) === 'misto';
   const rows = (s.items || []).map(it => `
-    <tr><td>${esc(it.name)}${misto ? ' <span class="muted">· ' + (itemConsumo(it, s) === 'local' ? 'no local' : 'retirada') + '</span>' : ''}</td><td class="num">${it.qty}</td><td class="num">${fmt(it.price)}</td>${hasItemDisc ? `<td class="num">${it.discount ? '<span class="neg">− ' + fmt(it.discount) + '</span>' + (itemDiscountNote(it) ? ' <span class="muted">(' + itemDiscountNote(it) + ')</span>' : '') : '—'}</td>` : ''}<td class="num">${fmt(itemNet(it))}</td></tr>`).join('');
+    <tr><td>${esc(itemLabel(it))}${misto ? ' <span class="muted">· ' + (itemConsumo(it, s) === 'local' ? 'no local' : 'retirada') + '</span>' : ''}</td><td class="num">${it.qty}</td><td class="num">${fmt(it.price)}</td>${hasItemDisc ? `<td class="num">${it.discount ? '<span class="neg">− ' + fmt(it.discount) + '</span>' + (itemDiscountNote(it) ? ' <span class="muted">(' + itemDiscountNote(it) + ')</span>' : '') : '—'}</td>` : ''}<td class="num">${fmt(itemNet(it))}</td></tr>`).join('');
   const facts = [
     ['Subtotal', fmt(sub)],
     (hasItemDisc ? ['Descontos nos itens', '− ' + fmt(itemsDisc)] : null),
@@ -73,7 +73,7 @@ async function cancelSale(id){
       await db.collection('sales').doc(s.id).update({ status: 'cancelada', canceledAt: new Date().toISOString() });
       for (const it of (s.items || [])) {
         const p = getProduct(it.productId);
-        if (p) await db.collection('products').doc(p.id).update({ stock: db.increment(it.qty) });
+        if (p) await db.collection('products').doc(p.id).update({ stock: db.increment(itemUnits(it)) });   // devolve em unidades
       }
     });
     closeModal();

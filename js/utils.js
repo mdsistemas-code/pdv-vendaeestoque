@@ -84,6 +84,33 @@ function getProduct(id){ return state.products.find(p => p.id === id); }
 // Preço do produto conforme o consumo: no local usa o valor próprio, se tiver; senão, o de retirada
 function hasLocalPrice(p){ return !!p && typeof p.priceLocal === 'number' && p.priceLocal > 0; }
 function productPrice(p, consumo){ return consumo === 'local' && hasLocalPrice(p) ? p.priceLocal : (p ? p.price : 0); }
+/* ---------- Formas de venda ----------
+   Além da unidade, o produto pode ser vendido em grade, meia grade, fardo, caixa...
+   product.forms = [{ id, name, qty (quantas unidades), price (retirada), priceLocal (no local, opcional) }]
+   O estoque é sempre contado em unidades: vender 1 grade de 23 baixa 23 unidades. */
+function productForms(p){ return p && Array.isArray(p.forms) ? p.forms.filter(f => f && f.id && f.qty > 1 && f.price > 0) : []; }
+function findForm(p, formId){ return formId ? productForms(p).find(f => f.id === formId) || null : null; }
+// Preço de uma forma (sem forma = unidade), conforme o consumo; no local sem valor próprio usa o de retirada
+function formPrice(p, form, consumo){
+  if (!form) return productPrice(p, consumo);
+  return consumo === 'local' && form.priceLocal > 0 ? form.priceLocal : form.price;
+}
+// Unidades de estoque de um item vendido (1 grade de 23 = 23)
+function itemUnits(it){ return it.qty * (it.formQty > 1 ? it.formQty : 1); }
+// Como um produto foi vendido: "3× Grade (23 un.) · 15 un." (forms vem de aggregateProducts)
+function formSoldText(f){ return f.name ? fmtQty(f.qty) + '× ' + f.name + ' (' + f.size + ' un.)' : fmtQty(f.qty) + ' un.'; }
+function formsSoldText(forms){ return (forms || []).map(formSoldText).join(' · '); }
+// Estoque nas embalagens do produto, usando a maior forma de venda: "2× Grade + 12 un." ('' se não der 1 embalagem)
+function stockBreakdown(p, units){
+  const u = units === undefined ? (p.stock || 0) : units;
+  const big = productForms(p).slice().sort((a, b) => b.qty - a.qty)[0];
+  if (!big || u < big.qty) return '';
+  const n = Math.floor(u / big.qty), rest = u - n * big.qty;
+  return n + '× ' + big.name + (rest ? ' + ' + rest + ' un.' : '');
+}
+// Nome do item com a forma de venda: "Brahma 600ml (Grade 23 un.)"
+function itemLabel(it){ return it.formName ? it.name + ' (' + it.formName + ' ' + it.formQty + ' un.)' : it.name; }
+
 // Forma de consumo de um item gravado. Vendas que gravaram só na venda inteira: vale a da venda; sem nada: retirada
 function itemConsumo(it, s){ return it.consumo === 'local' || it.consumo === 'retirada' ? it.consumo : (s && s.consumo === 'local' ? 'local' : 'retirada'); }
 // Da venda inteira, a partir dos itens: 'retirada', 'local' ou 'misto'
@@ -117,7 +144,7 @@ function saleProfit(s){ return (s.items || []).reduce((a, it) => a + (it.price -
 // "2x Skol, 1x Gelo". Quando a venda mistura as duas formas, marca os itens consumidos no local
 function itemsSummary(s){
   const misto = saleConsumo(s) === 'misto';
-  return (s.items || []).map(i => i.qty + 'x ' + i.name + (misto && itemConsumo(i, s) === 'local' ? ' (no local)' : '')).join(', ');
+  return (s.items || []).map(i => i.qty + 'x ' + itemLabel(i) + (misto && itemConsumo(i, s) === 'local' ? ' (no local)' : '')).join(', ');
 }
 function sortedSales(){ return [...state.sales].sort((a, b) => new Date(b.date) - new Date(a.date)); }
 function saleRemaining(s){ return Math.max(0, round2(s.total - (s.paidAmount || 0))); }

@@ -41,14 +41,18 @@ function renderRelatorio(){
   $('#reportEmpty').style.display = d.prods.length ? 'none' : 'block';
   $('#reportBody').innerHTML = d.prods.map(p => {
     const costTotal = p.revenue - p.profit;
+    // Vendido como: uma linha por forma (grade, meia grade, unidade); com mais de uma, mostra o faturamento de cada
+    const several = p.forms.length > 1;
+    const sold = p.forms.map(f => '<div class="sold-form">' + esc(formSoldText(f)) + (several ? ' <span class="muted">· ' + fmt(f.revenue) + '</span>' : '') + '</div>').join('');
     return `<tr>
       <td>${esc(p.name)}</td><td class="muted">${esc(p.category)}</td>
+      <td class="sold-as"><div class="sold-list">${sold}</div></td>
       <td class="num">${fmtQty(p.qty)}</td><td class="num">${fmt(p.revenue)}</td>
       <td class="num ${p.profit >= 0 ? 'pos' : 'neg'}">${fmt(p.profit)}</td>
       <td class="num">${costTotal > 0 ? Math.round(p.profit / costTotal * 100) + '%' : '—'}</td>
     </tr>`;
   }).join('');
-  $('#reportFoot').innerHTML = d.prods.length ? `<tr><td colspan="2">Total (antes do desconto geral)</td><td class="num">${fmtQty(d.prods.reduce((a, p) => a + p.qty, 0))}</td><td class="num">${fmt(sumBy(d.prods, p => p.revenue))}</td><td class="num">${fmt(sumBy(d.prods, p => p.profit))}</td><td></td></tr>` : '';
+  $('#reportFoot').innerHTML = d.prods.length ? `<tr><td colspan="3">Total (antes do desconto geral)</td><td class="num">${fmtQty(d.prods.reduce((a, p) => a + p.qty, 0))}</td><td class="num">${fmt(sumBy(d.prods, p => p.revenue))}</td><td class="num">${fmt(sumBy(d.prods, p => p.profit))}</td><td></td></tr>` : '';
 
   renderReportCharts(d);
 }
