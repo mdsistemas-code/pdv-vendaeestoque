@@ -62,12 +62,6 @@ function customerStatementText(customerId){
     L.push('');
     L.push('*Total em aberto: ' + fmt(customerDebt(customerId)) + '*');
   }
-  const pays = state.payments.filter(p => p.customerId === customerId).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3);
-  if (pays.length) {
-    L.push('');
-    L.push('Últimos pagamentos:');
-    pays.forEach(p => L.push('• ' + fmtDateShort(p.date) + ' — ' + fmt(p.amount) + ' (' + (METHOD_LABELS[p.method] || p.label || '') + ')'));
-  }
   L.push('');
   L.push('Qualquer dúvida, é só chamar.');
   return L.join('\n');
@@ -198,8 +192,8 @@ function saleReceiptBlocks(s){
   return B;
 }
 
-// Extrato do cliente: compras em aberto (com itens e valor unitário), total e últimos pagamentos.
-// Como o extrato enviado, não usa a palavra "fiado".
+// Extrato impresso do cliente: compras em aberto (com itens e valor unitário) e o total em aberto.
+// Como o extrato enviado em texto, não traz a lista de pagamentos nem usa a palavra "fiado".
 function customerStatementBlocks(customerId){
   const c = getCustomer(customerId);
   const open = openFiadoSales(customerId).sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -218,11 +212,6 @@ function customerStatementBlocks(customerId){
     B.push({ t: 'row', l: 'Falta pagar', r: fmt(saleRemaining(s)), cls: 'bold' });
   });
   if (open.length) B.push({ t: 'sep' }, { t: 'row', l: 'TOTAL EM ABERTO', r: fmt(customerDebt(customerId)), cls: 'total' });
-  const pays = state.payments.filter(p => p.customerId === customerId).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
-  if (pays.length) {
-    B.push({ t: 'sep' }, { t: 'name', text: 'Últimos pagamentos' });
-    pays.forEach(p => B.push({ t: 'row', l: fmtDate(p.date) + ' — ' + (METHOD_LABELS[p.method] || p.label || ''), r: fmt(p.amount) }));
-  }
   B.push({ t: 'sep' }, { t: 'foot', text: 'Qualquer dúvida, é só chamar.', small: 'Não é documento fiscal' });
   return B;
 }
