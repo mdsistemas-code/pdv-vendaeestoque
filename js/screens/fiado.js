@@ -150,10 +150,12 @@ function openCustomerDetails(id){
     </table></div>` : '<div class="empty-state">Nenhum pagamento de fiado registrado.</div>'}
     <div class="modal-actions">
       <button class="btn btn-outline" data-close>Fechar</button>
-      ${debt > 0 ? '<button class="btn btn-outline" id="cdStatement">Enviar extrato</button><button class="btn btn-primary" id="cdReceive">Receber fiado</button>' : ''}
+      ${debt > 0 ? '<button class="btn btn-outline" id="cdPrint">Imprimir extrato</button><button class="btn btn-outline" id="cdStatement">Enviar extrato</button><button class="btn btn-primary" id="cdReceive">Receber fiado</button>' : ''}
     </div>`, { wide: true });
   const sb = $('#cdStatement', sheet);
   if (sb) sb.addEventListener('click', () => shareStatement(id, true));
+  const pb = $('#cdPrint', sheet);
+  if (pb) pb.addEventListener('click', () => printStatement(id));
   const rb = $('#cdReceive', sheet);
   if (rb) rb.addEventListener('click', () => openReceiveModal(id));
   // Cancelar uma compra fiado sem sair do cliente (o clique não abre os detalhes da venda)

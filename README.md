@@ -199,7 +199,7 @@ Ao editar uma venda, cada item mantém o preço da época enquanto continuar na 
 
 ## Descontos na venda
 
-- **Desconto por item:** no carrinho, clique em **＋ desconto** no produto e escolha **%** ou **R$ por unidade**. O desconto vale para todas as unidades do produto: um item de R$ 10,00 com R$ 1,00 de desconto fica R$ 9,00 cada, e as unidades adicionadas depois já entram com esse preço.
+- **Desconto por item:** no carrinho, clique em **＋ desconto** no produto e digite o valor em **R$** (há atalhos como R$ 0,50, R$ 1,00 e R$ 2,00). O desconto é só em valor, não em porcentagem. Ele vale para cada unidade do produto, ou para cada grade, fardo etc. quando a linha é dessa forma de venda. Um item de R$ 10,00 com R$ 1,00 de desconto fica R$ 9,00 cada, e as unidades adicionadas depois já entram com esse preço. Ao editar uma venda antiga que tinha desconto em %, ele aparece convertido no valor equivalente.
 - **Desconto geral:** campo abaixo do subtotal, para abater um valor da venda inteira. Ele é aplicado depois dos descontos nos itens.
 
 Os descontos aparecem no comprovante, nos detalhes da venda e no relatório. O lucro já é calculado com eles.
@@ -244,9 +244,15 @@ O sistema calcula o **lucro líquido** (lucro das vendas menos os gastos pagos),
 
 - Logo depois de finalizar uma venda, o aviso mostra os botões **Imprimir** e **Compartilhar**. A venda também pode ser impressa ou compartilhada depois, em **Vendas →** clique na venda **→ Imprimir cupom** ou **Compartilhar**. A janela de compartilhar também tem o botão **Imprimir**.
 - O cupom traz cada item com a **quantidade × valor unitário** e o total do item, por exemplo "2 x R$ 4,50 = R$ 9,00". Para uma grade, aparece "1 x R$ 190,00". Depois vêm os descontos, o total, a forma de pagamento (com troco, se houver) e a frase "Não é documento fiscal".
-- **Imprimir** abre a janela de impressão do aparelho, e só o cupom é impresso. A largura se ajusta ao papel: bobina de 58 mm, de 80 mm ou folha comum. Escolha a impressora e o tamanho do papel nessa janela. Impressoras térmicas Bluetooth funcionam no celular quando estão instaladas como impressora do Android.
+- **Imprimir no computador** abre direto a janela de impressão, e só o cupom é impresso. A largura se ajusta ao papel: bobina de 58 mm, de 80 mm ou folha comum. Escolha a impressora e o tamanho do papel nessa janela.
+- **Imprimir no celular** abre a pergunta "Escolha como imprimir", com o cupom à vista e duas opções:
+  - **Imagem do cupom**, a mais segura no celular. Gera uma imagem do cupom na largura da bobina de 80 mm e abre o compartilhar do celular. Para impressora térmica Bluetooth, escolha o aplicativo da impressora. Dá também para mandar no WhatsApp, usar **Imprimir** do celular ou salvar. Se o aparelho não tiver esse compartilhar, a imagem é salva.
+  - **Impressão do celular**, a impressão do Android ou do iPhone. Funciona com impressoras Wi-Fi ou quando a impressora tem o serviço de impressão instalado no celular.
+- O mesmo vale para o **extrato** do cliente.
+- **Na prévia do Claude**, a impressão direta é bloqueada pelo próprio Claude. Por isso, lá o botão **Imprimir** sempre abre essa pergunta, e a **Imagem do cupom** é salva.
 - **Compartilhar** envia o mesmo comprovante em texto pelo WhatsApp (se o cliente tiver telefone cadastrado, o número já vem preenchido), pelo compartilhar do celular ou copiando o texto.
-- **Extrato do cliente:** na tela **Fiado**, **Enviar extrato** manda a lista de compras em aberto, o total e os últimos pagamentos. O extrato enviado ao cliente não usa a palavra "fiado": o título é "Extrato — Nome do cliente".
+- **Extrato do cliente:** na tela **Fiado**, **Enviar extrato** manda a lista de compras em aberto, o total e os últimos pagamentos. O extrato não usa a palavra "fiado": o título é "Extrato — Nome do cliente".
+- **Imprimir o extrato:** em **Fiado → Detalhes** do cliente, use **Imprimir extrato**. A janela de enviar extrato também tem o botão **Imprimir**. O extrato impresso mostra cada compra em aberto com os itens (quantidade × valor unitário), o total da compra, quanto já foi pago e quanto falta. No fim vêm o total em aberto e os últimos pagamentos, no mesmo papel de bobina ou folha do cupom.
 
 ## Cancelar uma venda fiado
 

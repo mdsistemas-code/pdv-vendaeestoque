@@ -165,25 +165,24 @@ function cartDiscountTag(key){
 }
 function cartItemsDiscount(){ return round2(Object.keys(cart).reduce((a, k) => a + lineDiscount(k), 0)); }
 
+// Desconto no item: só em valor (R$), em cada unidade (ou em cada grade, fardo...) da linha
 function openItemDiscount(key){
   const p = getProduct(lineProduct(key));
   if (!p) return;
   const price = linePrice(key);
   const qty = cart[key] || 0;
   const gross = lineGross(key);
+  const form = lineForm(key);
+  const each = form ? 'cada ' + form.name.toLowerCase() : 'cada unidade';
   const cur = cartDiscounts[key];
-  let type = cur ? cur.type : 'pct';
+  const curValue = cur ? round2(cur.type === 'pct' ? price * cur.value / 100 : cur.value) : 0;
+  const quick = [0.5, 1, 2, 5, 10].filter(v => v < price).slice(0, 4);
   const sheet = openModal(`
     <h3>Desconto no item</h3>
-    <div class="sub"><b>${esc(p.name)}</b>${lineForm(key) ? ' — ' + esc(lineForm(key).name) + ' ' + lineForm(key).qty + ' un.' : ''} (${lineMode(key) === 'local' ? 'consumo no local' : 'retirada'}) — ${fmt(price)} cada, ${qty} no carrinho. O desconto vale para todas as unidades.</div>
-    <label class="field-label">Tipo de desconto</label>
-    <div class="segmented" id="idType">
-      <button data-t="pct">Porcentagem (%)</button>
-      <button data-t="valor">Valor (R$)</button>
-    </div>
-    <label class="field-label" for="idValue" id="idValueLabel">Desconto</label>
-    <input type="text" inputmode="decimal" id="idValue" value="${cur ? (cur.type === 'pct' ? pctText(cur.value) : fmtInput(cur.value)) : ''}" autocomplete="off">
-    <div class="chip-row quick-chips" id="idQuick">${[5, 10, 15, 20].map(n => `<button class="chip" data-pct="${n}">${n}%</button>`).join('')}</div>
+    <div class="sub"><b>${esc(p.name)}</b>${form ? ' — ' + esc(form.name) + ' ' + form.qty + ' un.' : ''} (${lineMode(key) === 'local' ? 'consumo no local' : 'retirada'}) — ${fmt(price)} ${form ? 'cada' : 'a unidade'}, ${qty} no carrinho.</div>
+    <label class="field-label" for="idValue">Desconto em ${each} (R$)</label>
+    <input type="text" inputmode="decimal" id="idValue" value="${curValue ? fmtInput(curValue) : ''}" placeholder="0,00" autocomplete="off">
+    ${quick.length ? `<div class="chip-row quick-chips" id="idQuick">${quick.map(v => `<button class="chip" data-v="${v}">${fmt(v)}</button>`).join('')}</div>` : ''}
     <div class="hint" id="idHint"></div>
     <div class="modal-actions">
       ${cur ? '<button class="btn btn-danger-outline" id="idRemove">Tirar desconto</button><span class="spacer"></span>' : ''}
@@ -196,42 +195,35 @@ function openItemDiscount(key){
     if (!raw) return { ok: false, msg: '' };
     const v = parseMoney(raw);
     if (isNaN(v) || v <= 0) return { ok: false, msg: 'Digite um valor maior que zero.' };
-    if (type === 'pct' && v > 100) return { ok: false, msg: 'A porcentagem vai até 100%.' };
-    if (type === 'valor' && v > price) return { ok: false, msg: 'O desconto não pode passar do preço da unidade (' + fmt(price) + ').' };
-    const unit = type === 'pct' ? price * v / 100 : v;
-    const d = round2(Math.min(gross, unit * qty));
-    return { ok: true, v, d, unitNet: round2(price - unit) };
+    if (v > price) return { ok: false, msg: 'O desconto não pode passar do preço (' + fmt(price) + ').' };
+    const d = round2(Math.min(gross, v * qty));
+    return { ok: true, v, d, unitNet: round2(price - v) };
   };
   const update = () => {
-    $$('#idType button', sheet).forEach(b => b.classList.toggle('active', b.dataset.t === type));
-    setText('idValueLabel', type === 'pct' ? 'Desconto (%)' : 'Desconto em cada unidade (R$)');
-    input.placeholder = type === 'pct' ? 'Ex: 10' : '0,00';
     const r = calc();
     const hint = $('#idHint', sheet);
     if (r.ok) {
-      hint.innerHTML = 'Cada unidade fica por <b>' + fmt(r.unitNet) + '</b> (era ' + fmt(price) + ').' +
-        (qty > 1 ? ' Com ' + qty + ' unidades: ' + fmt(gross - r.d) + ', − ' + fmt(r.d) + '.' : '');
+      hint.innerHTML = (form ? 'Cada ' + esc(form.name.toLowerCase()) : 'Cada unidade') + ' fica por <b>' + fmt(r.unitNet) + '</b> (era ' + fmt(price) + ').' +
+        (qty > 1 ? ' Com ' + qty + ' no carrinho: ' + fmt(gross - r.d) + ', − ' + fmt(r.d) + '.' : '');
     } else hint.innerHTML = r.msg ? '<span class="neg">' + r.msg + '</span>' : '';
   };
-  $('#idType', sheet).addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b || b.dataset.t === type) return;
-    type = b.dataset.t; input.value = ''; update(); input.focus();
-  });
-  $('#idQuick', sheet).addEventListener('click', e => {
-    const b = e.target.closest('[data-pct]'); if (!b) return;
-    type = 'pct'; input.value = b.dataset.pct; update(); input.focus();
+  const qb = $('#idQuick', sheet);
+  if (qb) qb.addEventListener('click', e => {
+    const b = e.target.closest('[data-v]'); if (!b) return;
+    input.value = fmtInput(Number(b.dataset.v)); update(); input.focus();
   });
   input.addEventListener('input', update);
   $('#idApply', sheet).addEventListener('click', () => {
     const r = calc();
     if (!r.ok) { toast(r.msg || 'Digite o desconto.', 'error'); input.focus(); return; }
-    cartDiscounts[key] = { type, value: r.v };
+    cartDiscounts[key] = { type: 'valor', value: r.v };
     closeModal();
     renderVenda();
   });
   const rm = $('#idRemove', sheet);
   if (rm) rm.addEventListener('click', () => { delete cartDiscounts[key]; closeModal(); renderVenda(); });
   update();
+  focusLater(() => input, 50);
 }
 
 function cartDiscountValue(){
@@ -510,8 +502,8 @@ async function startEditSale(id){
     const cost = typeof it.cost === 'number' ? it.cost : (p.costPrice || 0) * fq;
     cartPrices[k] = { price: it.price, cost, unitCost: cost / fq };
     if (it.formId) cartFormInfo[k] = { id: it.formId, name: it.formName, qty: fq, price: it.price, priceLocal: null };
-    if (it.discountPct) cartDiscounts[k] = { type: 'pct', value: it.discountPct };
-    else if (it.discountUnit) cartDiscounts[k] = { type: 'valor', value: it.discountUnit };
+    // desconto do item sempre em valor por unidade (vendas antigas com % viram o valor equivalente)
+    if (it.discountUnit) cartDiscounts[k] = { type: 'valor', value: it.discountUnit };
     else if (it.discount) cartDiscounts[k] = { type: 'valor', value: round2(it.discount / it.qty) };
   });
   const general = saleGeneralDiscount(s);

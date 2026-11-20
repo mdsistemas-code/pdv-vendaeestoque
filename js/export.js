@@ -13,13 +13,13 @@ async function getClaudeDownloads(){
   return claudeDownloads;
 }
 
+// Devolve true quando o arquivo foi entregue; false se a pessoa recusou (dentro do Claude)
 async function downloadFile(filename, content, mime){
   // Dentro do Claude, o arquivo é entregue pela própria plataforma
   const dl = await getClaudeDownloads();
   if (dl) {
-    try { await dl.save({ filename, data: content }); }
-    catch (e) { if (!e || e.code !== 'declined') throw e; }
-    return;
+    try { await dl.save({ filename, data: content }); return true; }
+    catch (e) { if (!e || e.code !== 'declined') throw e; return false; }
   }
   const blob = new Blob([content], { type: mime || 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
@@ -30,6 +30,7 @@ async function downloadFile(filename, content, mime){
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return true;
 }
 
 function csvNum(n){ return round2(n).toFixed(2).replace('.', ','); }

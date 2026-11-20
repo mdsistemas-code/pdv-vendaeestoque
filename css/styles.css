@@ -610,7 +610,6 @@ nav.bottom{ display:none; }
 .rc-title{ text-align:center; font-weight:700; margin-top:1.5mm; }
 .rc-info{ text-align:center; margin-top:1mm; }
 .rc-sep{ border-top:1px dashed #000; margin:2mm 0; }
-.rc-item + .rc-item{ margin-top:1.5mm; }
 .rc-name{ font-weight:600; }
 .rc-name small{ font-weight:400; }
 .rc-row{ display:flex; justify-content:space-between; gap:3mm; }
@@ -619,6 +618,16 @@ nav.bottom{ display:none; }
 .rc-total{ font-size:15px; font-weight:700; margin-top:1mm; }
 .rc-foot{ text-align:center; }
 .rc-foot small{ font-size:9.5px; }
+.rc-bold{ font-weight:700; }
+.rc-name{ margin-top:1.5mm; }
+.rc-sep + .rc-name{ margin-top:0; }
+/* Janela "como imprimir" (celular e prévia) */
+.print-preview{ margin-top:12px; max-height:42vh; overflow:auto; border:1px solid var(--line); border-radius:10px; background:#fff; padding:14px 10px; }
+.print-preview .rc{ max-width:72mm; }
+.print-options{ display:flex; flex-direction:column; gap:6px; margin-top:14px; }
+.print-options .btn{ width:100%; justify-content:center; }
+.print-options .hint{ margin:0 0 6px; min-height:0; }
+.rc-sep-light{ border-top-style:dotted; opacity:0.6; }
 
 @media (max-width: 860px), (pointer: coarse) and (max-height: 520px){
   .kpi-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
