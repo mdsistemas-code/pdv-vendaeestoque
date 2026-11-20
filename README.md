@@ -27,7 +27,7 @@ deposito-bebidas/
     ├── auth.js           Login, senhas, usuários e código de recuperação
     ├── charts.js         Gráficos (desenhados pelo próprio sistema, em SVG)
     ├── export.js         Download de arquivos e exportação CSV
-    ├── share.js          Comprovante de venda e extrato de fiado (WhatsApp, compartilhar, copiar)
+    ├── share.js          Cupom de venda (imprimir, WhatsApp, compartilhar, copiar) e extrato do cliente
     ├── app.js            Inicialização, login e navegação
     └── screens/          Um arquivo por tela
         ├── inicio.js
@@ -240,11 +240,19 @@ O sistema calcula o **lucro líquido** (lucro das vendas menos os gastos pagos),
 
 ---
 
-## Compartilhar venda e extrato de fiado
+## Cupom: imprimir ou compartilhar
 
-- Logo depois de finalizar uma venda, à vista ou fiado, aparece o botão **Compartilhar** no aviso. A venda também pode ser compartilhada depois, em **Vendas →** clique na venda **→ Compartilhar**.
-- No **Fiado**, o botão **Enviar extrato** monta a lista de compras em aberto do cliente e o total devido. É útil para cobrar.
-- Você pode **enviar pelo WhatsApp** (se o cliente tiver telefone cadastrado, o número já vem preenchido), usar o **compartilhar** do celular ou **copiar o texto**.
+- Logo depois de finalizar uma venda, o aviso mostra os botões **Imprimir** e **Compartilhar**. A venda também pode ser impressa ou compartilhada depois, em **Vendas →** clique na venda **→ Imprimir cupom** ou **Compartilhar**. A janela de compartilhar também tem o botão **Imprimir**.
+- O cupom traz cada item com a **quantidade × valor unitário** e o total do item, por exemplo "2 x R$ 4,50 = R$ 9,00". Para uma grade, aparece "1 x R$ 190,00". Depois vêm os descontos, o total, a forma de pagamento (com troco, se houver) e a frase "Não é documento fiscal".
+- **Imprimir** abre a janela de impressão do aparelho, e só o cupom é impresso. A largura se ajusta ao papel: bobina de 58 mm, de 80 mm ou folha comum. Escolha a impressora e o tamanho do papel nessa janela. Impressoras térmicas Bluetooth funcionam no celular quando estão instaladas como impressora do Android.
+- **Compartilhar** envia o mesmo comprovante em texto pelo WhatsApp (se o cliente tiver telefone cadastrado, o número já vem preenchido), pelo compartilhar do celular ou copiando o texto.
+- **Extrato do cliente:** na tela **Fiado**, **Enviar extrato** manda a lista de compras em aberto, o total e os últimos pagamentos. O extrato enviado ao cliente não usa a palavra "fiado": o título é "Extrato — Nome do cliente".
+
+## Cancelar uma venda fiado
+
+Na tela **Fiado**, clique em **Detalhes** no cliente. Cada compra em aberto tem o botão **Cancelar**. Depois de confirmar, os produtos voltam para o estoque e a janela do cliente abre de novo, já atualizada. Também dá para cancelar em **Vendas →** clique na venda **→ Cancelar venda**.
+
+Se a compra já tinha recebido algum pagamento, o valor continua registrado no caixa. O aviso de confirmação lembra disso, para você devolver ao cliente se for o caso.
 
 ---
 

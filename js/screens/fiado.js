@@ -140,8 +140,8 @@ function openCustomerDetails(id){
     </div>
     <h4>Fiados em aberto</h4>
     ${open.length ? `<div class="table-wrap"><table class="data">
-      <thead><tr><th>Venda</th><th>Data</th><th>Itens</th><th class="num">Total</th><th class="num">Falta</th></tr></thead>
-      <tbody>${open.map(s => `<tr class="clickable" data-sale="${s.id}"><td><b>${saleLabel(s)}</b></td><td class="nowrap">${fmtDate(s.date)}</td><td class="items-cell">${esc(itemsSummary(s))}</td><td class="num">${fmt(s.total)}</td><td class="num"><b class="neg">${fmt(saleRemaining(s))}</b></td></tr>`).join('')}</tbody>
+      <thead><tr><th>Venda</th><th>Data</th><th>Itens</th><th class="num">Total</th><th class="num">Falta</th><th></th></tr></thead>
+      <tbody>${open.map(s => `<tr class="clickable" data-sale="${s.id}"><td><b>${saleLabel(s)}</b></td><td class="nowrap">${fmtDate(s.date)}</td><td class="items-cell">${esc(itemsSummary(s))}</td><td class="num">${fmt(s.total)}</td><td class="num"><b class="neg">${fmt(saleRemaining(s))}</b></td><td class="num"><button class="btn btn-danger-outline btn-xs" data-cancelsale="${s.id}">Cancelar</button></td></tr>`).join('')}</tbody>
     </table></div>` : '<div class="empty-state">Nenhum fiado em aberto.</div>'}
     <h4>Pagamentos recebidos</h4>
     ${pays.length ? `<div class="table-wrap"><table class="data">
@@ -156,4 +156,11 @@ function openCustomerDetails(id){
   if (sb) sb.addEventListener('click', () => shareStatement(id, true));
   const rb = $('#cdReceive', sheet);
   if (rb) rb.addEventListener('click', () => openReceiveModal(id));
+  // Cancelar uma compra fiado sem sair do cliente (o clique não abre os detalhes da venda)
+  sheet.addEventListener('click', e => {
+    const b = e.target.closest('[data-cancelsale]');
+    if (!b) return;
+    e.stopPropagation();
+    cancelSale(b.dataset.cancelsale, { after: () => openCustomerDetails(id) });
+  });
 }

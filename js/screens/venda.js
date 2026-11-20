@@ -460,7 +460,7 @@ async function finalizeSale(){
     });
     const label = '#' + String(number).padStart(4, '0');
     toast('Venda ' + label + ' registrada: ' + fmt(draft.total) + (draft.change ? ' — troco ' + fmt(draft.change) : ''), 'ok',
-      { label: 'Compartilhar', onClick: () => shareSale(saleId) });
+      [{ label: 'Imprimir', onClick: () => printSale(saleId) }, { label: 'Compartilhar', onClick: () => shareSale(saleId) }]);
     resetSaleForm();
   } catch (e) {
     toast(errMsg(e, 'Não foi possível salvar a venda. Tente de novo.'), 'error');

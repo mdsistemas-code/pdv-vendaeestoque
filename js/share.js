@@ -1,6 +1,6 @@
 /* share.js
-   Compartilhar comprovante de venda (à vista ou fiado) e extrato de fiado do cliente:
-   pelo WhatsApp, pelo menu de compartilhar do aparelho ou copiando o texto. */
+   Comprovante de venda (à vista ou fiado) e extrato do cliente: pelo WhatsApp, pelo menu de
+   compartilhar do aparelho, copiando o texto ou imprimindo o cupom (bobina de 58/80 mm ou folha). */
 
 function storeName(){ return brandInfo().name; }
 
@@ -14,8 +14,13 @@ function saleReceiptText(s){
   if (s.customerId) L.push('Cliente: ' + customerName(s.customerId));
   L.push('');
   const misto = saleConsumo(s) === 'misto';
-  (s.items || []).forEach(it => L.push(it.qty + 'x ' + itemLabel(it) + (misto && itemConsumo(it, s) === 'local' ? ' (no local)' : '') + ' — ' + fmt(itemNet(it)) +
-    (it.discount ? ' (desconto de ' + fmt(it.discount) + (itemDiscountNote(it) ? ': ' + itemDiscountNote(it) : '') + ')' : '')));
+  // Cada item: nome, e embaixo quantidade × valor unitário = total do item
+  (s.items || []).forEach(it => {
+    L.push(itemLabel(it) + (misto && itemConsumo(it, s) === 'local' ? ' (no local)' : ''));
+    L.push('   ' + it.qty + ' x ' + fmt(it.price) +
+      (it.discount ? ' − ' + fmt(it.discount) + ' de desconto' + (itemDiscountNote(it) ? ' (' + itemDiscountNote(it) + ')' : '') : '') +
+      ' = ' + fmt(itemNet(it)));
+  });
   L.push('');
   if (s.discount) {
     const itemsDisc = saleItemsDiscount(s), generalDisc = saleGeneralDiscount(s);
@@ -46,7 +51,7 @@ function customerStatementText(customerId){
   const open = openFiadoSales(customerId).sort((a, b) => new Date(a.date) - new Date(b.date));
   const L = [];
   L.push('*' + storeName() + '*');
-  L.push('Extrato de fiado — ' + (c ? c.name : 'Cliente'));
+  L.push('Extrato — ' + (c ? c.name : 'Cliente'));
   L.push('Atualizado em ' + fmtDate(new Date().toISOString()));
   L.push('');
   if (!open.length) {
@@ -103,6 +108,7 @@ function openShareModal(o){
     <div class="hint">Sem número, o WhatsApp abre para você escolher o contato.</div>
     <div class="modal-actions">
       ${o.back ? '<button class="btn btn-outline" id="shBack">Voltar</button>' : ''}
+      ${o.print ? '<button class="btn btn-outline" id="shPrint">Imprimir</button>' : ''}
       <button class="btn btn-outline" id="shCopy">Copiar texto</button>
       ${canShare ? '<button class="btn btn-outline" id="shNative">Compartilhar…</button>' : ''}
       <span class="spacer"></span>
@@ -133,6 +139,82 @@ function openShareModal(o){
   });
   const back = $('#shBack', sheet);
   if (back) back.addEventListener('click', o.back);
+  const pr = $('#shPrint', sheet);
+  if (pr) pr.addEventListener('click', o.print);
+}
+
+/* ---------- Cupom impresso ----------
+   Monta o cupom numa área própria (#printArea) e abre a janela de impressão do aparelho.
+   Na impressão só o cupom aparece. A largura se ajusta ao papel: bobina de 58 mm, de 80 mm ou folha. */
+function saleReceiptHTML(s){
+  const b = brandInfo();
+  const misto = saleConsumo(s) === 'misto';
+  const row = (l, r, cls) => '<div class="rc-row ' + (cls || '') + '"><span>' + l + '</span><span>' + r + '</span></div>';
+  const items = (s.items || []).map(it => {
+    const local = misto && itemConsumo(it, s) === 'local';
+    return '<div class="rc-item"><div class="rc-name">' + esc(itemLabel(it)) + (local ? ' <small>(no local)</small>' : '') + '</div>' +
+      row(it.qty + ' x ' + fmt(it.price), fmt(round2(it.qty * it.price))) +
+      (it.discount ? row('Desconto' + (itemDiscountNote(it) ? ' (' + esc(itemDiscountNote(it)) + ')' : ''), '− ' + fmt(it.discount), 'rc-muted') : '') +
+      '</div>';
+  }).join('');
+  const lines = [];
+  if (s.discount) {
+    const itemsDisc = saleItemsDiscount(s), generalDisc = saleGeneralDiscount(s);
+    lines.push(row('Subtotal', fmt(saleSubtotal(s))));
+    if (itemsDisc > 0) lines.push(row('Descontos nos itens', '− ' + fmt(itemsDisc)));
+    if (generalDisc > 0) lines.push(row(itemsDisc > 0 ? 'Desconto geral' : 'Desconto', '− ' + fmt(generalDisc)));
+  }
+  lines.push(row('TOTAL', fmt(s.total), 'rc-total'));
+  const pay = [];
+  if (s.type === 'fiado') {
+    pay.push(row('Pagamento', 'Fiado (pagar depois)'));
+    if (isActive(s)) {
+      if ((s.paidAmount || 0) > 0) pay.push(row('Já pago', fmt(s.paidAmount)));
+      pay.push(s.paid ? row('Situação', 'Quitada') : row('<b>Falta pagar</b>', '<b>' + fmt(saleRemaining(s)) + '</b>'));
+    }
+  } else {
+    pay.push(row('Pagamento', esc(methodLabel(s))));
+    if (typeof s.cashReceived === 'number') pay.push(row('Recebido', fmt(s.cashReceived)));
+    if (s.change) pay.push(row('Troco', fmt(s.change)));
+  }
+  return `<div class="rc">
+    <div class="rc-head">
+      ${b.logo ? '<img class="rc-logo" src="' + b.logo + '" alt="">' : ''}
+      <div class="rc-store">${esc(b.name)}</div>
+    </div>
+    <div class="rc-title">${isActive(s) ? 'Comprovante de venda' : 'VENDA CANCELADA'} ${saleLabel(s)}</div>
+    <div class="rc-info">${fmtDate(s.date)} às ${fmtTime(s.date)}<br>${esc(CONSUMO_LABELS[saleConsumo(s)])}
+      ${s.customerId ? '<br>Cliente: ' + esc(customerName(s.customerId)) : ''}
+      ${s.sellerName ? '<br>Atendente: ' + esc(s.sellerName) : ''}
+      ${s.editedAt ? '<br>(alterada em ' + fmtDate(s.editedAt) + ' às ' + fmtTime(s.editedAt) + ')' : ''}</div>
+    <div class="rc-sep"></div>
+    ${items}
+    <div class="rc-sep"></div>
+    ${lines.join('')}
+    <div class="rc-sep"></div>
+    ${pay.join('')}
+    <div class="rc-sep"></div>
+    <div class="rc-foot">Obrigado pela preferência!<br><small>Não é documento fiscal</small></div>
+  </div>`;
+}
+
+function printSale(id){
+  const s = getSale(id);
+  if (!s) { toast('Venda não encontrada.', 'error'); return; }
+  printHTML(saleReceiptHTML(s));
+}
+
+function printHTML(html){
+  let area = document.getElementById('printArea');
+  if (!area) { area = document.createElement('div'); area.id = 'printArea'; document.body.appendChild(area); }
+  area.innerHTML = html;
+  // Dentro da prévia do Claude a janela de impressão é bloqueada; no site publicado ela abre normalmente
+  if (window.self !== window.top) toast('Se a janela de impressão não abrir aqui, é bloqueio da prévia. No seu site ela abre normalmente.');
+  const go = () => { try { window.print(); } catch (e) { toast('Não foi possível abrir a impressão neste aparelho.', 'error'); } };
+  // espera a logo carregar antes de imprimir
+  const img = area.querySelector('img');
+  if (img && !img.complete) { img.addEventListener('load', go, { once: true }); img.addEventListener('error', go, { once: true }); }
+  else setTimeout(go, 60);
 }
 
 function shareSale(id, fromDetails){
@@ -143,7 +225,8 @@ function shareSale(id, fromDetails){
     title: 'Compartilhar venda ' + saleLabel(s),
     text: saleReceiptText(s),
     phone: c ? c.phone : '',
-    back: fromDetails ? () => openSaleDetails(id) : null
+    back: fromDetails ? () => openSaleDetails(id) : null,
+    print: () => printSale(id)
   });
 }
 
@@ -151,7 +234,7 @@ function shareStatement(customerId, fromDetails){
   const c = getCustomer(customerId);
   if (!c) return;
   openShareModal({
-    title: 'Extrato de fiado — ' + c.name,
+    title: 'Extrato — ' + c.name,
     text: customerStatementText(customerId),
     phone: c.phone || '',
     back: fromDetails ? () => openCustomerDetails(customerId) : null

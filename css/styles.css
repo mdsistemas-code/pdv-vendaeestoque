@@ -590,6 +590,35 @@ nav.bottom{ display:none; }
   white-space:nowrap; flex-shrink:0;
 }
 .toast-action:hover{ background:rgba(255,255,255,0.26); }
+.toast-action + .toast-action{ margin-left:-6px; }
+
+/* =========================================================
+   CUPOM IMPRESSO — só ele aparece na impressão
+   ========================================================= */
+#printArea{ display:none; }
+@media print{
+  @page{ margin:4mm; }
+  html, body{ background:#fff !important; }
+  body{ margin:0 !important; padding:0 !important; display:block !important; min-height:0 !important; overflow:visible !important; }
+  body > *:not(#printArea){ display:none !important; }
+  #printArea{ display:block !important; }
+}
+.rc{ width:100%; max-width:76mm; margin:0 auto; color:#000; background:#fff; font-family:'Inter', Arial, Helvetica, sans-serif; font-size:11.5px; line-height:1.35; }
+.rc-head{ text-align:center; }
+.rc-logo{ max-width:60%; max-height:18mm; object-fit:contain; display:block; margin:0 auto 2mm; }
+.rc-store{ font-size:15px; font-weight:700; }
+.rc-title{ text-align:center; font-weight:700; margin-top:1.5mm; }
+.rc-info{ text-align:center; margin-top:1mm; }
+.rc-sep{ border-top:1px dashed #000; margin:2mm 0; }
+.rc-item + .rc-item{ margin-top:1.5mm; }
+.rc-name{ font-weight:600; }
+.rc-name small{ font-weight:400; }
+.rc-row{ display:flex; justify-content:space-between; gap:3mm; }
+.rc-row span:last-child{ white-space:nowrap; text-align:right; }
+.rc-muted{ font-size:10.5px; }
+.rc-total{ font-size:15px; font-weight:700; margin-top:1mm; }
+.rc-foot{ text-align:center; }
+.rc-foot small{ font-size:9.5px; }
 
 @media (max-width: 860px), (pointer: coarse) and (max-height: 520px){
   .kpi-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }

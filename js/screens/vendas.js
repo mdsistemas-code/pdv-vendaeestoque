@@ -48,11 +48,13 @@ function openSaleDetails(id){
       ${active ? '<button class="btn btn-danger-outline" id="sdCancel">Cancelar venda</button><span class="spacer"></span>' : ''}
       ${active && s.type === 'fiado' && !s.paid ? '<button class="btn btn-outline" id="sdReceive">Receber fiado</button>' : ''}
       ${active ? '<button class="btn btn-outline" id="sdEdit">Editar venda</button>' : ''}
+      <button class="btn btn-outline" id="sdPrint">Imprimir cupom</button>
       <button class="btn btn-outline" id="sdShare">Compartilhar</button>
       <button class="btn btn-primary" data-close>Fechar</button>
     </div>`, { wide: true });
 
   $('#sdShare', sheet).addEventListener('click', () => shareSale(s.id, true));
+  $('#sdPrint', sheet).addEventListener('click', () => printSale(s.id));
   const editBtn = $('#sdEdit', sheet);
   if (editBtn) editBtn.addEventListener('click', () => startEditSale(s.id));
   const cancelBtn = $('#sdCancel', sheet);
@@ -61,7 +63,8 @@ function openSaleDetails(id){
   if (recBtn) recBtn.addEventListener('click', () => openReceiveModal(s.customerId));
 }
 
-async function cancelSale(id){
+// opts.after: o que abrir depois de cancelar (ex.: voltar para o cliente na tela Fiado)
+async function cancelSale(id, opts){
   const s = getSale(id);
   if (!s || !isActive(s) || !requireDb()) return;
   let msg = 'A venda ' + saleLabel(s) + ' de ' + fmt(s.total) + ' será cancelada e os produtos voltam para o estoque.';
@@ -79,6 +82,7 @@ async function cancelSale(id){
     closeModal();
     if (editingSaleId === s.id) resetSaleForm();
     toast('Venda ' + saleLabel(s) + ' cancelada. Estoque devolvido.');
+    if (opts && typeof opts.after === 'function') opts.after();
   } catch (e) { toast(errMsg(e, 'Não foi possível cancelar a venda.'), 'error'); }
 }
 

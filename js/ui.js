@@ -11,16 +11,18 @@ function toast(msg, type, action){
   span.textContent = msg;
   el.appendChild(span);
   const close = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); };
-  if (action) {
+  // action: { label, onClick } ou uma lista deles (ex.: Imprimir e Compartilhar)
+  const actions = !action ? [] : Array.isArray(action) ? action : [action];
+  actions.forEach(a => {
     const b = document.createElement('button');
     b.className = 'toast-action';
-    b.textContent = action.label;
-    b.addEventListener('click', () => { close(); action.onClick(); });
+    b.textContent = a.label;
+    b.addEventListener('click', () => { close(); a.onClick(); });
     el.appendChild(b);
-  }
+  });
   $('#toasts').appendChild(el);
   requestAnimationFrame(() => el.classList.add('show'));
-  setTimeout(close, action ? 8000 : (type === 'error' ? 5000 : 3200));
+  setTimeout(close, actions.length ? 8000 : (type === 'error' ? 5000 : 3200));
 }
 
 function setSync(s){
