@@ -251,8 +251,8 @@ O sistema calcula o **lucro líquido** (lucro das vendas menos os gastos pagos),
 - O mesmo vale para o **extrato** do cliente.
 - **Na prévia do Claude**, a impressão direta é bloqueada pelo próprio Claude. Por isso, lá o botão **Imprimir** sempre abre essa pergunta, e a **Imagem do cupom** é salva.
 - **Compartilhar** envia o mesmo comprovante em texto pelo WhatsApp (se o cliente tiver telefone cadastrado, o número já vem preenchido), pelo compartilhar do celular ou copiando o texto.
-- **Extrato do cliente:** na tela **Fiado**, **Enviar extrato** manda a lista de compras em aberto, o total e os últimos pagamentos. O extrato não usa a palavra "fiado": o título é "Extrato — Nome do cliente".
-- **Imprimir o extrato:** em **Fiado → Detalhes** do cliente, use **Imprimir extrato**. A janela de enviar extrato também tem o botão **Imprimir**. O extrato impresso mostra cada compra em aberto com os itens (quantidade × valor unitário), o total da compra, quanto já foi pago e quanto falta. No fim vêm o total em aberto e os últimos pagamentos, no mesmo papel de bobina ou folha do cupom.
+- **Extrato do cliente:** na tela **Fiado**, **Enviar extrato** manda a lista de compras em aberto (com o que falta de cada uma) e o total em aberto, sem a lista de pagamentos. O extrato não usa a palavra "fiado": o título é "Extrato — Nome do cliente".
+- **Imprimir o extrato:** em **Fiado → Detalhes** do cliente, use **Imprimir extrato**. A janela de enviar extrato também tem o botão **Imprimir**. O extrato impresso mostra cada compra em aberto com os itens (quantidade × valor unitário), o total da compra, quanto já foi pago e quanto falta. No fim vem o total em aberto. Ele sai no mesmo papel de bobina ou folha do cupom e, como o extrato enviado, não traz a lista de pagamentos.
 
 ## Cancelar uma venda fiado
 
